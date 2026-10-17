@@ -79,6 +79,7 @@ python scripts/render_rooms.py tests/fixtures/roomplan/amal.json
 
 - **Articulated kitchen** from the twin: counters with drawers (slide joints), cabinet and wall-cabinet doors (hinge joints), a sink with a faucet lever, a stove with a bottom-hinged oven door, and fridge, dishwasher and microwave doors. `arrival.sim.scene.part_names(twin)` lists every joint with its handle site and an open position. Objects collide with the moving parts, so a mug rests on a drawer tray or an open oven door.
 - **Arm**: a procedurally built 7-DoF Panda-like arm (not the Franka asset) driven through IK, so joint states in the dataset are the simulated joint positions, plus a parallel gripper that holds objects by friction contact.
+- **Base**: fixed per episode by default. `--base mobile` (on `sim` and `eval`) puts the pedestal on two slide joints and a hinge with position actuators; the expert drives it at up to 0.3 m/s and 0.5 rad/s, only with the gripper closed on an object, and waits while a person is within 0.7 m in front of it. Either way the base pose (x, y, yaw in the room frame) is `state[8:11]` and `action[8:11]`, and `embodiment.json` says whether it was actuated (`base_actuated`).
 - **People**: kinematic bodies walking seeded loops through the room: a free point, a lane that crosses behind the robot base, a 2 to 4 s stop at the counter, back out. They move and occlude; they are not simulated humans and they do not collide. `arrival/sim/safety.py` measures the horizontal clearance between every robot collision geom and each person every control step; an episode whose minimum reaches 0 is a human contact and is dropped from the dataset even when the task succeeded. The value is written per episode as `arrival_min_human_distance_m` and `arrival_human_contact` in `meta/episodes.jsonl`.
 - **Cameras**: rendered with MuJoCo's offscreen renderer.
 - **Policies** behind one interface: a scripted expert (default), a VLM planner via Nebius Token Factory (needs `TOKEN_FACTORY_API_KEY`; placeholder until a key is set), and a VLA client for a GR00T policy server (placeholder; no server is shipped or run here).
@@ -89,6 +90,7 @@ Run it:
 ```bash
 python -m pip install -e ".[dev,sim]"
 python -m arrival sim --episodes 8 --people 2 --save-preview   # contact sheet + mp4 in out/previews/
+python -m arrival sim --base mobile --families counter_to_counter --episodes 4   # the pedestal drives (MAN-3)
 python -m arrival validate out/datasets/hero_kitchen_sim
 ```
 
@@ -99,7 +101,7 @@ Status as of Oct 14 (scripted expert, friction grasps, physics-checked):
 | `counter_to_sink` | 100% | mug, and the bowl held by its rim |
 | `open_drawer` | 100% | both counters |
 | `open_door` | 100% | both cabinet doors, 8/8 over two seeds; the door ends at about 70° (threshold 60°) |
-| `counter_to_counter` | skipped | pick point and target about 2 m apart, base is fixed per episode. Needs a mobile base |
+| `counter_to_counter` | 100% with `--base mobile`, skipped on the fixed base | pick point and target about 2 m apart: the base parks a step toward the target, grasps, tucks the object in front of itself above the counter top, drives along the counter front and places; 12/12 with two people over three seeds |
 | `close_drawer` | 100% | starts open 0.30 m, pushed shut on the handle bar; success is the slide joint under 0.03 m |
 | `close_door` | 100% | starts open 70°, pushed shut along its arc; success is the hinge under 5° |
 | `put_in_drawer` | 100% | drawer starts open 0.14 m, mug set on the exposed part of the tray; success is the mug resting inside the tray |

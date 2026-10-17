@@ -17,7 +17,10 @@ from pathlib import Path
 import numpy as np
 
 from arrival.sim import ik
-from arrival.sim.robot import FINGER_OPEN, HOME
+from arrival.sim.robot import BASE_SPEED, BASE_TURN, FINGER_OPEN, HOME
+
+MINJERK_PEAK = 1.875  # peak over mean speed of a min-jerk move: sizes a base drive so it never exceeds BASE_SPEED
+STOP_CLEAR = 0.7  # the base waits while a person is this close ahead of it (0.12 pedestal + 0.17 torso + margin)
 
 
 class Policy:
@@ -43,8 +46,11 @@ class ScriptedExpert(Policy):
         return yaw + np.pi if np.cos(yaw - np.arctan2(x[1], x[0])) < -0.5 else yaw
 
     def _waypoints(self, env, task: dict) -> list[tuple]:
-        """(pos, R, gripper, steps[, via]) list."""
+        """(pos, R, gripper, steps[, via[, base]]) list. base is a room-frame (x, y, yaw) the base stands at for
+        that waypoint (None: where it already is); pos None keeps the arm's joints while the base drives."""
         fam, o, c = task["family"], FINGER_OPEN, 0.0
+        if fam == "counter_to_counter" and getattr(env, "mobile", False):
+            return self._drive_and_place(env, task, o, c)
         if fam in ("counter_to_sink", "counter_to_counter"):
             p = env.body_pos(task["object_id"])
             gz = p[2] + min(0.01, env.obj_half_h(task["object_id"]) * 0.2)
@@ -183,20 +189,61 @@ class ScriptedExpert(Policy):
             return out
         raise ValueError(f"unknown family {fam}")
 
+    def _drive_and_place(self, env, task: dict, o: float, c: float) -> list[tuple]:
+        """counter_to_counter on a mobile base: grasp in front of the object, tuck the object in front of the base
+        and above the counter top, drive along the counter front to the target, then place as counter_to_sink does."""
+        from arrival.sim.collect import _front
+
+        p = env.body_pos(task["object_id"])
+        gz = p[2] + min(0.01, env.obj_half_h(task["object_id"]) * 0.2)
+        tgt = env.place_point(task)
+        rim = env.rim_grasp(task["object_id"])
+        yaw = 0.0
+        if rim is not None:
+            off, yaw = rim
+            p = p + np.array([off[0], off[1], 0.0])
+            tgt = tgt + np.array([off[0], off[1], 0.0])
+            gz = env.body_pos(task["object_id"])[2] + env.obj_half_h(task["object_id"]) - 0.02
+        R = ik.down(self._grip_yaw(env, yaw))
+        s = self.seg_steps
+        here, there = env.base_pose(), env.drive_to
+        n = _front(env.fx[task["source"]])[:2]
+        carry = (here[0] - 0.25 * n[0], here[1] - 0.25 * n[1], 1.1)  # just off the counter front, above its top
+        return [((p[0], p[1], gz + 0.18), R, o, s, False, here), ((p[0], p[1], gz + 0.02), R, o, s),
+                ((p[0], p[1], gz), R, o, s // 2), ((p[0], p[1], gz), R, c, self.hold_steps),
+                ((p[0], p[1], gz + 0.22), R, c, s), (carry, R, c, s),
+                (None, None, c, s, False, there),
+                ((tgt[0], tgt[1], gz + 0.22), R, c, 2 * s), ((tgt[0], tgt[1], tgt[2]), R, c, s),
+                ((tgt[0], tgt[1], tgt[2]), R, o, self.hold_steps), ((tgt[0], tgt[1], tgt[2] + 0.2), R, o, s)]
+
     def reset(self, env, task: dict) -> None:
+        from arrival.sim.collect import FPS
+
+        self.env, self.last, self.held = env, None, 0
         if task["family"] in ("close_drawer", "close_door"):
             self.open_at = float(env.data.joint(task["joint"]).qpos[0])  # how far the part starts open
         q = np.array(HOME)
         self.plan: list[np.ndarray] = []
-        prev = np.concatenate([q, [FINGER_OPEN]])
+        base = env.base_pose()
+        prev = np.concatenate([q, [FINGER_OPEN], base])
         self.ik_error = 0.0
         chain: list[tuple[np.ndarray, int]] = []
-        for pos, R, g, steps, *via in self._waypoints(env, task):
-            q, err = ik.solve(env.model, env.data, pos, R, q, env.qadr, env.dofadr)
-            self.ik_error = max(self.ik_error, err)
-            nxt = np.concatenate([q, [g]])
+        for pos, R, g, steps, *rest in self._waypoints(env, task):
+            via = bool(rest[0]) if rest else False
+            nxt_base = np.asarray(rest[1], dtype=float) if len(rest) > 1 and rest[1] is not None else base
+            if pos is not None:
+                pin = (env.badr, nxt_base - env.base0) if getattr(env, "mobile", False) else None
+                q, err = ik.solve(env.model, env.data, pos, R, q, env.qadr, env.dofadr, fixed=pin)
+                self.ik_error = max(self.ik_error, err)
+            d_xy = float(np.hypot(*(nxt_base[:2] - base[:2])))
+            d_yaw = abs(float(nxt_base[2] - base[2]))
+            if d_xy > 1e-6 or d_yaw > 1e-6:  # a drive: long enough that the min-jerk peak stays under the limits
+                steps = max(steps, int(np.ceil(MINJERK_PEAK * d_xy / BASE_SPEED * FPS)) + 2,
+                            int(np.ceil(MINJERK_PEAK * d_yaw / BASE_TURN * FPS)) + 2)
+            base = nxt_base
+            nxt = np.concatenate([q, [g], base])
             chain.append((nxt, steps))
-            if via and via[0]:
+            if via:
                 continue
             total = sum(n for _, n in chain)
             knots = np.cumsum([0] + [n for _, n in chain]) / total
@@ -213,6 +260,16 @@ class ScriptedExpert(Policy):
 
     def act(self, obs: dict) -> np.ndarray:
         a = self.plan[min(self.t, len(self.plan) - 1)]
+        if self.last is not None and self.t < len(self.plan) and getattr(self.env, "mobile", False):
+            cur = self.env.base_pose()[:2]
+            d = a[8:10] - cur
+            if np.linalg.norm(d) > 1e-5:  # about to drive: wait for anyone close in front, the plan resumes after
+                for p in self.env.people_xy:
+                    v = np.asarray(p, dtype=float) - cur
+                    if np.linalg.norm(v) < STOP_CLEAR and v @ d > 0:
+                        self.held += 1
+                        return self.last
+        self.last = a
         self.t += 1
         return a
 
@@ -298,8 +355,9 @@ class VLAClient(Policy):
 
     POST {GR00T_POLICY_URL}/act  JSON:
       {"video.ego_view": <base64 PNG HxWx3 uint8>, "state.single_arm": [7], "state.gripper": [1],
-       "annotation.human.task_description": "<instruction>"}
-    Response: {"action.single_arm": [[7], ...], "action.gripper": [[1], ...]}  (absolute joint targets, chunk)
+       "state.base": [3], "annotation.human.task_description": "<instruction>"}
+    Response: {"action.single_arm": [[7], ...], "action.gripper": [[1], ...], "action.base": [[3], ...]}
+    (absolute joint targets, chunk; action.base is optional and the base holds without it)
     Matches meta/modality.json of datasets written by `arrival sim`.
     """
 
@@ -324,10 +382,12 @@ class VLAClient(Policy):
             Image.fromarray(obs["ego_view"]).save(buf, format="PNG")
             body = json.dumps({"video.ego_view": base64.b64encode(buf.getvalue()).decode(),
                                "state.single_arm": obs["state"][:7].tolist(), "state.gripper": obs["state"][7:8].tolist(),
+                               "state.base": obs["state"][8:11].tolist(),
                                "annotation.human.task_description": self.instruction}).encode()
             req = urllib.request.Request(self.url.rstrip("/") + "/act", data=body, method="POST",
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 out = json.load(r)
-            self.queue = [np.concatenate([a, g]) for a, g in zip(out["action.single_arm"], out["action.gripper"])]
+            bases = out.get("action.base") or [[]] * len(out["action.single_arm"])  # absent: the base holds
+            self.queue = [np.concatenate([a, g, b]) for a, g, b in zip(out["action.single_arm"], out["action.gripper"], bases)]
         return np.asarray(self.queue.pop(0), dtype=float)

@@ -10,14 +10,17 @@ from arrival.sim.robot import HOME
 
 def solve(model, data, target_pos, R_t, q0, qadr: list[int], dofadr: list[int],
           iters: int = 200, damping: float = 0.05, tol: float = 2e-3,
-          rest=HOME, k_rest: float = 0.2) -> tuple[np.ndarray, float]:
+          rest=HOME, k_rest: float = 0.2, fixed: tuple[list[int], np.ndarray] | None = None) -> tuple[np.ndarray, float]:
     """Returns (q, position error). Works on a scratch MjData; R_t is the target eef rotation matrix.
 
     The redundant DoF are pulled toward `rest` (gain k_rest) through the Jacobian nullspace, so the elbow/wrist
-    stay near the ready posture; iteration stops once the task is met and the posture has settled."""
+    stay near the ready posture; iteration stops once the task is met and the posture has settled.
+    `fixed` = (qpos addresses, values) pins other joints, e.g. the mobile base where it will stand."""
     d = mujoco.MjData(model)
     d.qpos[:] = data.qpos
     d.qpos[qadr] = q0
+    if fixed is not None:
+        d.qpos[fixed[0]] = fixed[1]
     sid = model.site("eef").id
     R_t = np.asarray(R_t, dtype=float)
     jp, jr = np.zeros((3, model.nv)), np.zeros((3, model.nv))

@@ -31,9 +31,10 @@ def _fx(twin: dict, fid: str) -> dict:
 
 
 def make_tasks(twin: dict, families: list[str], n: int, seed: int = 0, people: int = 0, holdout: bool = False,
-               split: str = "train", use_generated_instructions: bool = False,
+               split: str = "train", use_generated_instructions: bool = False, mobile: bool = False,
                log=print) -> list[dict]:
     """n task variations cycling through the requested families; unreachable families are skipped and logged.
+    mobile=True means the base drives (MAN-3), so counter_to_counter may pair any two counters.
     holdout=False draws the training set: wording HOLDOUT_WORDING (families with 4 templates) and HOLDOUT_OFFSET
     are excluded. holdout=True draws only those; families with 3 templates keep all 3 either way.
     use_generated_instructions draws from the Nemotron cache (or the template fallback) for `split` instead."""
@@ -60,7 +61,7 @@ def make_tasks(twin: dict, families: list[str], n: int, seed: int = 0, people: i
                         if c is src:
                             continue
                         edge = c["position"][0] - (c["size"][0] / 2 - 0.12) * (1 if c["position"][0] > o["position"][0] else -1)
-                        if abs(edge - o["position"][0]) < 1.0:  # base sits between source and target
+                        if mobile or abs(edge - o["position"][0]) < 1.0:  # fixed base sits between source and target
                             tgt_xy.append((c, edge))
                 for tgt, tx in tgt_xy:
                     pool.append({"object_id": o["id"], "object_label": o["label"], "source": src["id"],
@@ -86,7 +87,8 @@ def make_tasks(twin: dict, families: list[str], n: int, seed: int = 0, people: i
         elif fam in ("open_drawer", "open_door", "close_drawer", "close_door"):
             pool = [{"fixture": c["id"], "name": c["id"].replace("_", " ")} for c in counters]
         if not pool:
-            log(f"[sim] family {fam}: no reachable variation in this room for a fixed-base arm; skipped")
+            log(f"[sim] family {fam}: no reachable variation in this room for a "
+                f"{'mobile' if mobile else 'fixed'}-base arm; skipped")
             continue
         pools[fam] = pool
     tasks = []

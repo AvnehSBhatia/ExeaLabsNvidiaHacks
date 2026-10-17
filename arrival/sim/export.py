@@ -18,9 +18,15 @@ def _stats(x: np.ndarray) -> dict:
             "std": x.std(0).tolist(), "count": [len(x)]}
 
 
+STATE_DIM = 11  # 7 arm joints, gripper, base x, y, yaw (room frame); same layout for action
+BASE_SLICE = {"start": 8, "end": STATE_DIM}
+
+
 class SimDatasetWriter:
-    def __init__(self, root: str | Path, room_id: str, fps: int, res: int, cameras: tuple[str, ...]):
+    def __init__(self, root: str | Path, room_id: str, fps: int, res: int, cameras: tuple[str, ...],
+                 base: str = "fixed"):
         self.root, self.room_id, self.fps, self.res, self.cameras = Path(root), room_id, fps, res, cameras
+        self.base = base
         if self.root.exists():
             shutil.rmtree(self.root)
         (self.root / "meta").mkdir(parents=True)
@@ -70,14 +76,18 @@ class SimDatasetWriter:
                 for r in rows:
                     f.write(json.dumps(r) + "\n")
         modality = json.loads(json.dumps(MODALITY))
+        modality["state"]["base"] = dict(BASE_SLICE)
+        modality["action"]["base"] = {**BASE_SLICE, "absolute": True}
         modality["video"] = {c: {"original_key": f"observation.images.{c}"} for c in self.cameras}
         (meta / "modality.json").write_text(json.dumps(modality, indent=2))
         (meta / "embodiment.json").write_text(json.dumps({
-            "embodiment": "arrival_sim_panda", "dof_arm": 7, "dof_gripper": 1,
+            "embodiment": "arrival_sim_panda", "dof_arm": 7, "dof_gripper": 1, "dof_base": 3,
+            "base": "planar", "base_frame": "room", "base_actuated": self.base == "mobile",
             "control": "absolute_joint_position", "joints_are_placeholder": False,
             "note": "Procedural Panda-like arm (Franka link offsets, capsule geometry) in MuJoCo. Gripper state = "
-                    "mean finger opening in meters (0..0.05). Base is fixed per episode; pose in episodes.jsonl is "
-                    "not recorded in state. Not a real-robot dataset.",
+                    "mean finger opening in meters (0..0.05). state[8:11] and action[8:11] are the base x, y, yaw "
+                    "in the room frame (meters, radians); with base_actuated false they hold the parked pose for "
+                    "the whole episode. Not a real-robot dataset.",
         }, indent=2))
         n = len(self.episodes)
         vid = {f"observation.images.{c}": {"dtype": "video", "shape": [self.res, self.res, 3],
@@ -95,8 +105,8 @@ class SimDatasetWriter:
             "arrival_success_check": "physics", "arrival_successes": n, "arrival_attempts": attempts,
             "arrival_video_policy": "all", "arrival_appearance": "mujoco_raster", "arrival_room_id": self.room_id,
             "arrival_families": sorted({e["arrival_family"] for e in self.episodes}),
-            "features": {"observation.state": {"dtype": "float32", "shape": [8]},
-                         "action": {"dtype": "float32", "shape": [8]}, **vid,
+            "features": {"observation.state": {"dtype": "float32", "shape": [STATE_DIM]},
+                         "action": {"dtype": "float32", "shape": [STATE_DIM]}, **vid,
                          "timestamp": {"dtype": "float32", "shape": [1]},
                          "annotation.human.task_description": {"dtype": "int64", "shape": [1]},
                          "task_index": {"dtype": "int64", "shape": [1]},

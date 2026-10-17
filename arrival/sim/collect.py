@@ -13,6 +13,7 @@ import numpy as np
 from arrival.sim import robot
 from arrival.sim.people import Walkers
 from arrival.sim.safety import SafetyMonitor
+from arrival.sim.export import STATE_DIM
 from arrival.sim.scene import build_mjcf, door_w, drawer_x
 
 FPS = 20
@@ -30,9 +31,15 @@ def _front(f: dict) -> np.ndarray:
     return np.array([-np.sin(y), np.cos(y), 0.0])
 
 
+BASE_MODES = ("fixed", "mobile")
+
+
 class SimEnv:
-    def __init__(self, twin: dict, task: dict, res: int = 128, cameras=("ego_view", "wrist"), overview: bool = False):
-        self.twin, self.task = twin, task
+    def __init__(self, twin: dict, task: dict, res: int = 128, cameras=("ego_view", "wrist"), overview: bool = False,
+                 base: str = "fixed"):
+        if base not in BASE_MODES:
+            raise ValueError(f"base must be one of {BASE_MODES}, got {base!r}")
+        self.twin, self.task, self.mobile = twin, task, base == "mobile"
         self.fx = {f["id"]: f for f in twin["fixtures"]}
         self.objs = {o["id"]: o for o in twin["objects"]}
         obj_pos = {}
@@ -41,24 +48,32 @@ class SimEnv:
             src = self.fx[task["source"]]
             obj_pos[o["id"]] = [task["start"][0], task["start"][1], self._top(src) + o["size"][2] / 2 + 0.003]
         base, yaw = self._base_pose(task, obj_pos)
-        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0))
+        self.base0 = np.array([base[0], base[1], np.radians(yaw)])  # parked pose, room frame; base joints are zero here
+        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0),
+                         base="mobile" if self.mobile else "fixed")
         self.model = mujoco.MjModel.from_xml_string(xml)
         self.data = mujoco.MjData(self.model)
         self.qadr = [int(self.model.joint(j).qposadr[0]) for j in robot.ARM_JOINTS]
         self.dofadr = [int(self.model.joint(j).dofadr[0]) for j in robot.ARM_JOINTS]
         self.fadr = [int(self.model.joint(f"finger_{s}").qposadr[0]) for s in ("l", "r")]
+        self.badr = [int(self.model.joint(j).qposadr[0]) for j in robot.BASE_JOINTS] if self.mobile else []
+        self.bact = [int(self.model.actuator(a).id) for a in ("b_x", "b_y", "b_yaw")] if self.mobile else []
         self.data.qpos[self.qadr] = robot.HOME
         self.data.qpos[self.fadr] = robot.FINGER_OPEN
         if task["family"] in ("close_drawer", "close_door", "put_in_drawer"):  # the part starts open
             jn = f'{task["fixture"]}_door' if task["family"] == "close_door" else f'{task["fixture"]}_drawer0'
             start = {"close_drawer": DRAWER_OPEN, "close_door": DOOR_OPEN, "put_in_drawer": DRAWER_OPEN_PUT}
             self.data.qpos[int(self.model.joint(jn).qposadr[0])] = start[task["family"]]
-        self.data.ctrl[:] = list(robot.HOME) + [robot.FINGER_OPEN] * 2
+        self.data.ctrl[:9] = list(robot.HOME) + [robot.FINGER_OPEN] * 2  # base actuators, if any, stay at zero
         self.wiped = 0.0  # xy distance the sponge travelled while pressed to the counter (wipe_counter)
         free = self._free_floor()
         front = max(f["position"][1] + f["size"][1] / 2 for f in twin["fixtures"])
+        self.drive_to = None  # room-frame base pose the expert drives to after the grasp (mobile counter_to_counter)
+        if self.mobile and task["family"] == "counter_to_counter":
+            self.drive_to = self.base_spot(task["target_x"], self.fx[task["target"]])
         self.walkers = Walkers(task.get("people", 0), free, seed=task.get("seed", 0), base_xy=base[:2],
-                               front_y=front) if task.get("people") else None
+                               front_y=front, base_to=None if self.drive_to is None else self.drive_to[:2]
+                               ) if task.get("people") else None
         self.safety = SafetyMonitor(self.model)
         mujoco.mj_forward(self.model, self.data)
         self.cameras, self.res = cameras, res
@@ -87,6 +102,8 @@ class SimEnv:
             mid = (p[0] + task["target_x"]) / 2
             n = _front(src)
             y = src["position"][1] + n[1] * (src["size"][1] / 2 + 0.28)
+            if fam == "counter_to_counter" and self.mobile:
+                mid = p[0] + 0.3 * np.sign(task["target_x"] - p[0])  # park a step toward the target, as for the sink
             base = (mid, y, 0.75)
             task.setdefault("_place", None)
         elif fam == "wipe_counter":
@@ -125,6 +142,15 @@ class SimEnv:
             hy = c["position"][1] + np.sin(yaw) * (lx + along) + n[1] * (sy / 2 + h)
             base = (hx, hy, 0.75)
         return base, float(np.degrees(np.arctan2(-n[1], -n[0])))
+
+    def base_pose(self) -> np.ndarray:
+        """Base x, y, yaw in the room frame (the parked pose when the base is fixed)."""
+        return self.base0 + self.data.qpos[self.badr] if self.mobile else self.base0.copy()
+
+    def base_spot(self, x_along: float, fixture: dict) -> np.ndarray:
+        """Room-frame base pose standing in front of `fixture` at x_along, facing it as the parked pose does."""
+        n = _front(fixture)
+        return np.array([x_along, fixture["position"][1] + n[1] * (fixture["size"][1] / 2 + 0.28), self.base0[2]])
 
     def body_pos(self, name: str) -> np.ndarray:
         return self.data.body(name).xpos.copy()
@@ -184,11 +210,15 @@ class SimEnv:
     # ---- stepping ----
     def state(self) -> np.ndarray:
         q = self.data.qpos
-        return np.array(list(q[self.qadr]) + [float(np.mean(q[self.fadr]))], dtype=np.float32)
+        return np.array(list(q[self.qadr]) + [float(np.mean(q[self.fadr]))] + list(self.base_pose()), dtype=np.float32)
 
     def step(self, action: np.ndarray) -> None:
+        """action: 7 arm targets, gripper opening, and optionally base x, y, yaw in the room frame (held when
+        absent or when the base is fixed)."""
         self.data.ctrl[:7] = action[:7]
         self.data.ctrl[7:9] = action[7]
+        if self.mobile and len(action) >= STATE_DIM:
+            self.data.ctrl[self.bact] = np.asarray(action[8:11], dtype=float) - self.base0
         before = self.body_pos(self.task["object_id"])[:2] if self.task["family"] == "wipe_counter" else None
         for _ in range(SUBSTEPS):
             mujoco.mj_step(self.model, self.data)
@@ -266,11 +296,14 @@ def run_episode(env: SimEnv, policy, task: dict, max_steps: int = 400, preview: 
     env.safety.reset()
     states, actions, frames, people = [], [], {c: [] for c in env.cameras}, []
     tail = 0
+    max_steps = max(max_steps, len(getattr(policy, "plan", ())) + 100)  # a drive across the room, plus waits for people
     for t in range(max_steps):
         obs = env.obs()
-        a = policy.act(obs)
+        a = np.asarray(policy.act(obs), dtype=float)
+        if len(a) < STATE_DIM:  # arm-only policies: the base holds where it is
+            a = np.concatenate([a, obs["state"][len(a):STATE_DIM]])
         states.append(obs["state"])
-        actions.append(np.asarray(a, dtype=np.float32))
+        actions.append(a.astype(np.float32))
         for c in env.cameras:
             frames[c].append(obs[c])
         if preview is not None:
@@ -290,9 +323,10 @@ def run_episode(env: SimEnv, policy, task: dict, max_steps: int = 400, preview: 
 def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path = "out", people: int = 2,
             policy_name: str = "scripted", res: int = 128, seed: int = 0, save_preview: bool = False,
             planner_name: str = "rule", cache_path: str | Path | None = None,
-            split: str = "train", use_generated_instructions: bool = False,
+            split: str = "train", use_generated_instructions: bool = False, base: str = "fixed",
             log=print) -> dict:
-    """Collect `episodes` attempts; failed attempts are dropped and counted."""
+    """Collect `episodes` attempts; failed attempts are dropped and counted. base="mobile" gives the arm a driven
+    base (MAN-3), which also admits the counter_to_counter variations a fixed base cannot reach."""
     from arrival.sim.export import SimDatasetWriter
     from arrival.sim.policy import ScriptedExpert, VLAClient, VLMPlanner
     from arrival.sim.tasks import make_tasks
@@ -300,7 +334,8 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
     out_dir = Path(out_dir)
     room = twin["room_id"]
     tasks = make_tasks(twin, families, episodes, seed=seed, people=people,
-                       split=split, use_generated_instructions=use_generated_instructions, log=log)
+                       split=split, use_generated_instructions=use_generated_instructions,
+                       mobile=base == "mobile", log=log)
     for t in tasks:
         if t["family"] in ("open_drawer", "close_drawer", "put_in_drawer"):
             t["handle"], t["joint"] = f'{t["fixture"]}_drawer0_handle', f'{t["fixture"]}_drawer0'
@@ -308,7 +343,7 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
             t["joint"] = f'{t["fixture"]}_door'
     policy = ScriptedExpert() if policy_name == "scripted" else VLAClient()
     planner = VLMPlanner(log=log, cache_path=cache_path) if planner_name == "vlm" else None
-    writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"))
+    writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"), base=base)
     t0 = time.perf_counter()
     per = {}
     preview = [] if save_preview else None
@@ -326,7 +361,7 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
             if plan.get("target") and plan["target"] in fx_ids:
                 task["target"] = plan["target"]
             log(f"[sim] task {task['task_id']}: planned by {planner.source} -> {plan}")
-        env = SimEnv(twin, task, res=res, overview=save_preview and i == 0)
+        env = SimEnv(twin, task, res=res, overview=save_preview and i == 0, base=base)
         ep = run_episode(env, policy, task, preview=preview if i == 0 else None)
         fam = per.setdefault(task["family"], {"attempts": 0, "successes": 0, "human_contacts": 0})
         fam["attempts"] += 1
@@ -349,7 +384,8 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
               "demos_per_hour": round(succ / seconds * 3600, 1) if seconds else 0.0,
               "human_contacts": sum(f["human_contacts"] for f in per.values()),
               "families": {k: {**v, "success_rate": round(v["successes"] / v["attempts"], 3)} for k, v in per.items()},
-              "people": people, "resolution": res, "physics_checked_success": True, "grasp": "friction"}
+              "people": people, "resolution": res, "physics_checked_success": True, "grasp": "friction",
+              "base": base}
     rp = out_dir / "reports" / f"{room}_sim.json"
     rp.parent.mkdir(parents=True, exist_ok=True)
     rp.write_text(json.dumps(report, indent=2))

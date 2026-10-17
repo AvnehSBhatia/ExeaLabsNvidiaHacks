@@ -13,6 +13,8 @@ RANGES = [(-2.9, 2.9), (-1.76, 1.76), (-2.9, 2.9), (-3.07, -0.07), (-2.9, 2.9), 
 KP = [3000, 3000, 2500, 2500, 1200, 1200, 600]
 FINGER_OPEN = 0.05
 ARM_JOINTS = [f"joint{i}" for i in range(1, 8)]
+BASE_JOINTS = ["base_x", "base_y", "base_yaw"]  # MAN-3: planar base on robot_base, room-frame x, y, yaw
+BASE_SPEED, BASE_TURN = 0.3, 0.5  # m/s and rad/s the expert never exceeds, so the data looks like a slow cart
 COL = 'contype="2" conaffinity="1"'  # hits world + moving parts, no self-collision
 HID = 'group="3"'
 WHITE, DARK, GREY = "0.94 0.94 0.95 1", "0.13 0.13 0.14 1", "0.55 0.57 0.6 1"
@@ -39,8 +41,9 @@ def _link(i: int, pos: str, quat: str, geom: str, inner: str) -> str:
             f'{geom}{inner}</body>')
 
 
-def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
-    """Body tree for the arm on a pedestal; Franka Panda link offsets (d1=.333, d3=.316, a=.0825, d5=.384, a7=.088)."""
+def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float, mobile: bool = False) -> str:
+    """Body tree for the arm on a pedestal; Franka Panda link offsets (d1=.333, d3=.316, a=.0825, d5=.384, a7=.088).
+    mobile=True puts the pedestal on two slide joints and a hinge (room-frame x, y, yaw, zero at the parked pose)."""
     cap = f'type="capsule" rgba="0.92 0.92 0.95 1" {HID} ' + COL
     z0 = "0 0 0"
     hand_vis = (_cyl(DARK, 0.031, z0, "0 0 0.012")
@@ -82,8 +85,19 @@ def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
     l1 = _link(1, "0 0 0.333", "1 0 0 0", f'<geom {cap} size="0.05" fromto="0 0 -0.2 0 0 0"/>'
                + _cyl(WHITE, 0.06, "0 0 -0.205", "0 0 -0.03"), l2)
     x, y, z = base_pos
+    base_joints = column = ""
+    if mobile:
+        # joint axes are in the body frame, which is yawed: rotate world x and y back into it; the hinge comes last
+        # so the slides stay room-aligned. The column floats 5 mm so it never grinds on the floor plane.
+        c, s = math.cos(math.radians(base_yaw_deg)), math.sin(math.radians(base_yaw_deg))
+        base_joints = (f'<joint name="base_x" type="slide" axis="{c} {-s} 0" damping="300"/>'
+                       f'<joint name="base_y" type="slide" axis="{s} {c} 0" damping="300"/>'
+                       f'<joint name="base_yaw" type="hinge" axis="0 0 1" damping="60"/>')
+        column = f'<geom type="cylinder" size="0.12 {z / 2 - 0.0025}" pos="0 0 {-z / 2 + 0.0025}" rgba="0.25 0.27 0.3 1"/>'
+    else:
+        column = f'<geom type="cylinder" size="0.12 {z / 2}" pos="0 0 {-z / 2}" rgba="0.25 0.27 0.3 1"/>'
     return (f'<body name="robot_base" pos="{x} {y} {z}" euler="0 0 {math.radians(base_yaw_deg)}">'
-            f'<geom type="cylinder" size="0.12 {z / 2}" pos="0 0 {-z / 2}" rgba="0.25 0.27 0.3 1"/>'
+            + base_joints + column +
             f'<geom type="cylinder" size="0.08 0.05" pos="0 0 0.05" rgba="0.92 0.92 0.95 1" {HID}/>'
             + _vis("cylinder", GREY, size="0.13 0.004", pos="0 0 0")
             + _vis("cylinder", DARK, size="0.2 0.01", pos=f"0 0 {-z + 0.01}")
@@ -94,9 +108,14 @@ def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
             f'{l1}</body>')
 
 
-def actuators_xml() -> str:
+def actuators_xml(mobile: bool = False) -> str:
     arm = "".join(f'<position name="a{i + 1}" joint="joint{i + 1}" kp="{KP[i]}" kv="{KP[i] / 15}" '
                   f'ctrlrange="{RANGES[i][0]} {RANGES[i][1]}"/>' for i in range(7))
     fing = "".join(f'<position name="g_{s}" joint="finger_{s}" kp="800" kv="30" ctrlrange="0 {FINGER_OPEN}" '
                    f'forcerange="-40 40"/>' for s in ("l", "r"))
-    return arm + fing
+    base = ""
+    if mobile:  # ctrl is the joint value, i.e. the displacement from the parked pose
+        base = (f'<position name="b_x" joint="base_x" kp="20000" kv="1500" ctrlrange="-10 10"/>'
+                f'<position name="b_y" joint="base_y" kp="20000" kv="1500" ctrlrange="-10 10"/>'
+                f'<position name="b_yaw" joint="base_yaw" kp="3000" kv="200" ctrlrange="-6.3 6.3"/>')
+    return arm + fing + base

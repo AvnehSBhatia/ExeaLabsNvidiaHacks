@@ -55,7 +55,8 @@ def test_collect_writes_valid_dataset(twin, tmp_path):
 
     t = pq.read_table(res["dataset"] / "data" / "chunk-000" / "episode_000000.parquet")
     s = np.array(t.column("observation.state").to_pylist())
-    assert s.shape[1] == 8 and np.ptp(s[:, :7], axis=0).max() > 0.3  # real joint motion
+    assert s.shape[1] == 11 and np.ptp(s[:, :7], axis=0).max() > 0.3  # real joint motion
+    assert np.ptp(s[:, 8:11], axis=0).max() == 0.0  # fixed base: the parked pose on every frame
     assert list((res["dataset"] / "videos" / "chunk-000" / "observation.images.wrist").glob("*.mp4"))
     errors = validate(res["dataset"])
     assert not errors, errors

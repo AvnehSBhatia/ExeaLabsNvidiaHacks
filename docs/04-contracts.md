@@ -415,6 +415,8 @@ Episode indexes are 6 digits, starting at 0, with no gaps after drops. Dropped a
 
 State and action are float32 length 8: 7 joints then gripper. Action at frame i equals the state at frame i (absolute joint targets). This matches the GR00T slicing rule in <https://github.com/NVIDIA/Isaac-GR00T/blob/main/getting_started/data_preparation.md>.
 
+The `sim` dataset (`<room_id>_sim`, written by `python -m arrival sim`) has a third slice: `"base": {"start": 8, "end": 11}` in `state` and the same with `"absolute": true` in `action`, so its state and action are length 11. The slice is the base x, y (meters) and yaw (radians) in the room frame; the action is the commanded base pose. With the default fixed base the three values hold the parked pose for the whole episode; with `--base mobile` they move at up to 0.3 m/s and 0.5 rad/s. One schema for both, so one GR00T modality config lists all three slices. `embodiment.json` carries `"dof_base": 3`, `"base": "planar"`, `"base_frame": "room"` and `"base_actuated": true|false`.
+
 ### embodiment.json
 
 ```json
@@ -582,6 +584,7 @@ The `sim` report (`out/reports/<room_id>_sim.json`) adds `human_contacts` (total
   "people": 2,
   "holdout": false,
   "resolution": 128,
+  "base": "fixed",
   "families": {
     "counter_to_sink": {
       "episodes": 4,
@@ -606,7 +609,7 @@ The `sim` report (`out/reports/<room_id>_sim.json`) adds `human_contacts` (total
 }
 ```
 
-`holdout: true` means every task used wording template 4 and the start offset `[0, +0.08]` where the family has them; `sim` datasets never contain those (the sim applies half the y offset, so the held-out start is +0.04 m in y). `success_rate = successes / episodes`, where an episode with a human contact is a failure whatever the physics check said. `wilson_95` is the Wilson score interval at z = 1.96. `mean_seconds` is sim time, frames / 20. `min_human_distance_m` is the minimum over episodes (`null` with `people` 0); a negative value is the depth of the worst overlap. `ik_error_max` is `null` for policies without an IK residual.
+`holdout: true` means every task used wording template 4 and the start offset `[0, +0.08]` where the family has them; `sim` datasets never contain those (the sim applies half the y offset, so the held-out start is +0.04 m in y). `success_rate = successes / episodes`, where an episode with a human contact is a failure whatever the physics check said. `wilson_95` is the Wilson score interval at z = 1.96. `mean_seconds` is sim time, frames / 20. `min_human_distance_m` is the minimum over episodes (`null` with `people` 0); a negative value is the depth of the worst overlap. `ik_error_max` is `null` for policies without an IK residual. `base` is `fixed` or `mobile` (`--base`), and the `sim` report carries the same key.
 
 ## Validator
 
@@ -614,7 +617,7 @@ The `sim` report (`out/reports/<room_id>_sim.json`) adds `human_contacts` (total
 
 - The four meta files plus `embodiment.json` exist.
 - `modality.json` slices match the contract.
-- Parquet columns exist and `observation.state` length is 8.
+- Parquet columns exist and `observation.state` length matches `info.features` (8 for `demo`, 11 for `sim`).
 - Episode count equals `total_episodes`.
 - Sum of episode lengths equals `total_frames`.
 - If `arrival_video_policy` is `sparse`, at least 8 mp4s exist for a 1,000-episode dataset, and at least 1 mp4 exists for a dataset with fewer than 125 episodes.
