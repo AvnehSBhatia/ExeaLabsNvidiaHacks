@@ -58,6 +58,20 @@ class ScriptedExpert(Policy):
                 gz = env.body_pos(task["object_id"])[2] + env.obj_half_h(task["object_id"]) - 0.02
             R = ik.down(self._grip_yaw(env, yaw))
             s = self.seg_steps
+            if fam == "counter_to_counter" and getattr(env, "mobile", False):
+                dx = float(tgt[0] - p[0])
+                lift = gz + 0.22
+                return [
+                    ((p[0], p[1], gz + 0.18), R, o, s, 0.0),
+                    ((p[0], p[1], gz + 0.02), R, o, s, 0.0),
+                    ((p[0], p[1], gz), R, o, s // 2, 0.0),
+                    ((p[0], p[1], gz), R, c, self.hold_steps, 0.0),
+                    ((p[0], p[1], lift), R, c, s, 0.0),
+                    ((p[0] + dx, p[1], lift), R, c, 3 * s, dx),
+                    ((tgt[0], tgt[1], tgt[2]), R, c, s, dx),
+                    ((tgt[0], tgt[1], tgt[2]), R, o, self.hold_steps, dx),
+                    ((tgt[0], tgt[1], tgt[2] + 0.2), R, o, s, dx),
+                ]
             return [((p[0], p[1], gz + 0.18), R, o, s), ((p[0], p[1], gz + 0.02), R, o, s),
                     ((p[0], p[1], gz), R, o, s // 2), ((p[0], p[1], gz), R, c, self.hold_steps),
                     ((p[0], p[1], gz + 0.22), R, c, s), ((tgt[0], tgt[1], gz + 0.22), R, c, 2 * s),
@@ -184,17 +198,31 @@ class ScriptedExpert(Policy):
         raise ValueError(f"unknown family {fam}")
 
     def reset(self, env, task: dict) -> None:
+        import mujoco
+
         if task["family"] in ("close_drawer", "close_door"):
             self.open_at = float(env.data.joint(task["joint"]).qpos[0])  # how far the part starts open
         q = np.array(HOME)
         self.plan: list[np.ndarray] = []
-        prev = np.concatenate([q, [FINGER_OPEN]])
+        is_mobile = getattr(env, "mobile", False)
+        prev = np.concatenate([q, [FINGER_OPEN], [0.0]] if is_mobile else [q, [FINGER_OPEN]])
         self.ik_error = 0.0
         chain: list[tuple[np.ndarray, int]] = []
-        for pos, R, g, steps, *via in self._waypoints(env, task):
-            q, err = ik.solve(env.model, env.data, pos, R, q, env.qadr, env.dofadr)
+        scratch_d = mujoco.MjData(env.model)
+        for wp in self._waypoints(env, task):
+            if is_mobile and len(wp) >= 5 and isinstance(wp[4], (int, float)):
+                pos, R, g, steps, bx = wp[:5]
+                via = wp[5:]
+            else:
+                pos, R, g, steps = wp[:4]
+                bx = 0.0
+                via = wp[4:]
+            scratch_d.qpos[:] = env.data.qpos
+            if is_mobile:
+                scratch_d.qpos[env.base_adr] = bx
+            q, err = ik.solve(env.model, scratch_d, pos, R, q, env.qadr, env.dofadr)
             self.ik_error = max(self.ik_error, err)
-            nxt = np.concatenate([q, [g]])
+            nxt = np.concatenate([q, [g], [bx]] if is_mobile else [q, [g]])
             chain.append((nxt, steps))
             if via and via[0]:
                 continue

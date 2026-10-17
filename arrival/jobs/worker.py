@@ -77,7 +77,7 @@ def claim_next(jobs_root: Path) -> tuple[Path, dict] | None:
 
 
 def process(job_dir: Path, status: dict, out_dir: Path, episodes: int = 8, families=DEFAULT_FAMILIES,
-            people: int = 1, res: int = 128, seed: int = 0, log=print) -> dict:
+            people: int = 1, res: int = 128, seed: int = 0, mobile_base: bool = False, log=print) -> dict:
     """Run every stage for one claimed job. Returns the final status; never raises."""
     out_dir, job_dir = Path(out_dir), Path(job_dir)
     try:
@@ -102,7 +102,8 @@ def process(job_dir: Path, status: dict, out_dir: Path, episodes: int = 8, famil
         _stage(job_dir, status, "sim", log)
         from arrival.sim.collect import collect
 
-        res_ = collect(twin, list(families), episodes, out_dir, people=people, res=res, seed=seed, log=log)
+        res_ = collect(twin, list(families), episodes, out_dir, people=people, res=res, seed=seed,
+                       mobile_base=mobile_base, log=log)
         r = res_["report_data"]
         status.update({"dataset_dir": str(res_["dataset"]), "attempts": r["attempts"], "successes": r["successes"]})
         if r["successes"] == 0:

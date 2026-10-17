@@ -38,6 +38,7 @@ def _finish_task(t: dict) -> dict:
 
 def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = "scripted", seed: int = 0,
              people: int = 2, holdout: bool = False, res: int = 128, out_dir: str | Path = "out",
+             mobile_base: bool = False,
              log=print) -> dict:
     from arrival.sim.policy import ScriptedExpert, VLAClient
 
@@ -50,6 +51,9 @@ def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = 
                                                      holdout=holdout, log=log)]
         if not tasks:
             continue
+        if mobile_base:
+            for t in tasks:
+                t["mobile"] = True
         rows = []
         for task in tasks:
             t0 = time.perf_counter()

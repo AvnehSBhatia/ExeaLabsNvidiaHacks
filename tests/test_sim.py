@@ -132,3 +132,54 @@ def test_vlm_planner_falls_back(monkeypatch):
     plan = p.plan("Put the mug in the sink.", ["mug_1", "bowl_1"], ["sink_1", "counter_a"])
     assert p.source == "rule_based"
     assert plan == {"family": "counter_to_sink", "object": "mug_1", "target": "sink_1"}
+
+
+def test_mobile_base_mjcf(twin):
+    m = mujoco.MjModel.from_xml_string(build_mjcf(twin, (1.3, 1.0, 0.75), mobile=True))
+    names = {m.joint(i).name for i in range(m.njnt)}
+    assert "base_x" in names
+    j = m.joint("base_x")
+    assert j.type == mujoco.mjtJoint.mjJNT_SLIDE
+    act_names = {m.actuator(i).name for i in range(m.nu)}
+    assert "a_base_x" in act_names
+    task = {"family": "counter_to_sink", "object_id": "mug_1", "source": "counter_a", "target": "sink_1",
+            "target_x": 1.6, "start": [1.0, 0.35, 0.97], "lighting": "neutral", "people": 0, "mobile": True}
+    env = SimEnv(twin, task, res=32, mobile=True)
+    assert env.state().shape == (9,)
+
+
+def test_mobile_base_counter_to_counter(twin):
+    from arrival.sim.collect import run_episode
+    from arrival.sim.policy import ScriptedExpert
+    from arrival.sim.tasks import make_tasks
+
+    tasks = make_tasks(twin, ["counter_to_counter"], 2, seed=42)
+    assert len(tasks) >= 2
+    for task in tasks:
+        env = SimEnv(twin, task, res=32, mobile=True)
+        policy = ScriptedExpert()
+        ep = run_episode(env, policy, task)
+        assert ep["success"], (task["object_id"], ep["detail"])
+        assert ep["ik_error"] < 0.02
+
+
+def test_collect_writes_valid_mobile_dataset(twin, tmp_path):
+    from arrival.export.validate import validate
+    import pyarrow.parquet as pq
+
+    res = collect(twin, ["counter_to_counter"], 1, tmp_path, mobile_base=True, people=0, res=32, log=lambda *_: None)
+    r = res["report_data"]
+    assert r["attempts"] == 1 and r["successes"] == 1
+    info = json.loads((res["dataset"] / "meta" / "info.json").read_text())
+    assert info["robot_type"] == "arrival_sim_mobile_panda"
+    assert info["features"]["observation.state"]["shape"] == [9]
+    assert info["features"]["action"]["shape"] == [9]
+    emb = json.loads((res["dataset"] / "meta" / "embodiment.json").read_text())
+    assert emb["embodiment"] == "arrival_sim_mobile_panda"
+    assert emb["dof_base"] == 1
+    t = pq.read_table(res["dataset"] / "data" / "chunk-000" / "episode_000000.parquet")
+    s = np.array(t.column("observation.state").to_pylist())
+    assert s.shape[1] == 9
+    assert np.ptp(s[:, 8]) > 0.3  # significant base movement along counter
+    errors = validate(res["dataset"])
+    assert not errors, errors

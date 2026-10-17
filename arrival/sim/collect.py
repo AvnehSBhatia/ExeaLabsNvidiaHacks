@@ -31,7 +31,8 @@ def _front(f: dict) -> np.ndarray:
 
 
 class SimEnv:
-    def __init__(self, twin: dict, task: dict, res: int = 128, cameras=("ego_view", "wrist"), overview: bool = False):
+    def __init__(self, twin: dict, task: dict, res: int = 128, cameras=("ego_view", "wrist"),
+                 overview: bool = False, mobile: bool | None = None):
         self.twin, self.task = twin, task
         self.fx = {f["id"]: f for f in twin["fixtures"]}
         self.objs = {o["id"]: o for o in twin["objects"]}
@@ -41,7 +42,10 @@ class SimEnv:
             src = self.fx[task["source"]]
             obj_pos[o["id"]] = [task["start"][0], task["start"][1], self._top(src) + o["size"][2] / 2 + 0.003]
         base, yaw = self._base_pose(task, obj_pos)
-        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0))
+        self.mobile = (mobile if mobile is not None
+                       else bool(task.get("mobile", task.get("family") == "counter_to_counter")))
+        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0),
+                         mobile=self.mobile)
         self.model = mujoco.MjModel.from_xml_string(xml)
         self.data = mujoco.MjData(self.model)
         self.qadr = [int(self.model.joint(j).qposadr[0]) for j in robot.ARM_JOINTS]
@@ -49,11 +53,18 @@ class SimEnv:
         self.fadr = [int(self.model.joint(f"finger_{s}").qposadr[0]) for s in ("l", "r")]
         self.data.qpos[self.qadr] = robot.HOME
         self.data.qpos[self.fadr] = robot.FINGER_OPEN
+        if self.mobile:
+            self.base_adr = int(self.model.joint("base_x").qposadr[0])
+            self.base_ctrl_idx = int(self.model.actuator("a_base_x").id)
+            self.data.qpos[self.base_adr] = 0.0
         if task["family"] in ("close_drawer", "close_door", "put_in_drawer"):  # the part starts open
             jn = f'{task["fixture"]}_door' if task["family"] == "close_door" else f'{task["fixture"]}_drawer0'
             start = {"close_drawer": DRAWER_OPEN, "close_door": DOOR_OPEN, "put_in_drawer": DRAWER_OPEN_PUT}
             self.data.qpos[int(self.model.joint(jn).qposadr[0])] = start[task["family"]]
-        self.data.ctrl[:] = list(robot.HOME) + [robot.FINGER_OPEN] * 2
+        ctrl = list(robot.HOME) + [robot.FINGER_OPEN] * 2
+        if self.mobile:
+            ctrl.append(0.0)
+        self.data.ctrl[:] = ctrl
         self.wiped = 0.0  # xy distance the sponge travelled while pressed to the counter (wipe_counter)
         free = self._free_floor()
         front = max(f["position"][1] + f["size"][1] / 2 for f in twin["fixtures"])
@@ -64,8 +75,11 @@ class SimEnv:
         self.cameras, self.res = cameras, res
         self.renderer = mujoco.Renderer(self.model, res, res)
         self.big = mujoco.Renderer(self.model, 360, 480) if overview else None
+        settle_act = list(robot.HOME) + [robot.FINGER_OPEN]
+        if self.mobile:
+            settle_act.append(0.0)
         for _ in range(SETTLE_STEPS):
-            self.step(np.array(list(robot.HOME) + [robot.FINGER_OPEN]))
+            self.step(np.array(settle_act))
 
     # ---- geometry helpers ----
     @staticmethod
@@ -84,7 +98,10 @@ class SimEnv:
             src = self.fx[task["source"]]
             p = np.array(obj_pos[task["object_id"]])
             tgt = self.fx[task["target"]]
-            mid = (p[0] + task["target_x"]) / 2
+            if fam == "counter_to_counter":
+                mid = p[0] + 0.10
+            else:
+                mid = (p[0] + task["target_x"]) / 2
             n = _front(src)
             y = src["position"][1] + n[1] * (src["size"][1] / 2 + 0.28)
             base = (mid, y, 0.75)
@@ -184,11 +201,16 @@ class SimEnv:
     # ---- stepping ----
     def state(self) -> np.ndarray:
         q = self.data.qpos
-        return np.array(list(q[self.qadr]) + [float(np.mean(q[self.fadr]))], dtype=np.float32)
+        vals = list(q[self.qadr]) + [float(np.mean(q[self.fadr]))]
+        if self.mobile:
+            vals.append(float(q[self.base_adr]))
+        return np.array(vals, dtype=np.float32)
 
     def step(self, action: np.ndarray) -> None:
         self.data.ctrl[:7] = action[:7]
         self.data.ctrl[7:9] = action[7]
+        if self.mobile and len(action) > 8:
+            self.data.ctrl[self.base_ctrl_idx] = action[8]
         before = self.body_pos(self.task["object_id"])[:2] if self.task["family"] == "wipe_counter" else None
         for _ in range(SUBSTEPS):
             mujoco.mj_step(self.model, self.data)
@@ -291,6 +313,7 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
             policy_name: str = "scripted", res: int = 128, seed: int = 0, save_preview: bool = False,
             planner_name: str = "rule", cache_path: str | Path | None = None,
             split: str = "train", use_generated_instructions: bool = False,
+            mobile_base: bool = False,
             log=print) -> dict:
     """Collect `episodes` attempts; failed attempts are dropped and counted."""
     from arrival.sim.export import SimDatasetWriter
@@ -302,13 +325,16 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
     tasks = make_tasks(twin, families, episodes, seed=seed, people=people,
                        split=split, use_generated_instructions=use_generated_instructions, log=log)
     for t in tasks:
+        if mobile_base:
+            t["mobile"] = True
         if t["family"] in ("open_drawer", "close_drawer", "put_in_drawer"):
             t["handle"], t["joint"] = f'{t["fixture"]}_drawer0_handle', f'{t["fixture"]}_drawer0'
         elif t["family"] in ("open_door", "close_door"):
             t["joint"] = f'{t["fixture"]}_door'
     policy = ScriptedExpert() if policy_name == "scripted" else VLAClient()
     planner = VLMPlanner(log=log, cache_path=cache_path) if planner_name == "vlm" else None
-    writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"))
+    writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"),
+                              mobile=mobile_base or any(t.get("mobile") for t in tasks))
     t0 = time.perf_counter()
     per = {}
     preview = [] if save_preview else None

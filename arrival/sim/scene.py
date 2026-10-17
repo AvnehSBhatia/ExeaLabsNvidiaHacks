@@ -455,7 +455,7 @@ def part_names(twin: dict) -> list[dict]:
 
 
 def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: dict | None = None,
-               lighting: str = "neutral", n_people: int = 0) -> str:
+               lighting: str = "neutral", n_people: int = 0, mobile: bool = False) -> str:
     """Returns an MJCF string. object_pos overrides {object_id: [x, y, z]} start positions."""
     object_pos = object_pos or {}
     fx = twin["fixtures"]
@@ -483,7 +483,7 @@ def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: di
     for o in twin["objects"]:
         world.append(object_xml(o, object_pos.get(o["id"], o["position"])))
     world += [people.person_xml(i) for i in range(n_people)]
-    world.append(robot.arm_xml(tuple(base_pos), base_yaw_deg))
+    world.append(robot.arm_xml(tuple(base_pos), base_yaw_deg, mobile=mobile))
     xs = [p for w in twin["walls"] for p in (w["start"][0], w["end"][0])]
     ys = [p for w in twin["walls"] for p in (w["start"][1], w["end"][1])]
     cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
@@ -502,5 +502,5 @@ def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: di
 <camera name="overview" pos="{cx} {max(ys) - 0.1} 2.2" xyaxes="-1 0 0 0 -0.6 0.8" fovy="80"/>
 {''.join(world)}
 </worldbody>
-<actuator>{robot.actuators_xml()}</actuator>
+<actuator>{robot.actuators_xml(mobile=mobile)}</actuator>
 </mujoco>"""

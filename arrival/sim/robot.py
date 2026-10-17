@@ -39,8 +39,9 @@ def _link(i: int, pos: str, quat: str, geom: str, inner: str) -> str:
             f'{geom}{inner}</body>')
 
 
-def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
-    """Body tree for the arm on a pedestal; Franka Panda link offsets (d1=.333, d3=.316, a=.0825, d5=.384, a7=.088)."""
+def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float, mobile: bool = False) -> str:
+    """Body tree for the arm on a pedestal (or actuated mobile platform); Franka Panda link offsets
+    (d1=.333, d3=.316, a=.0825, d5=.384, a7=.088)."""
     cap = f'type="capsule" rgba="0.92 0.92 0.95 1" {HID} ' + COL
     z0 = "0 0 0"
     hand_vis = (_cyl(DARK, 0.031, z0, "0 0 0.012")
@@ -82,21 +83,35 @@ def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
     l1 = _link(1, "0 0 0.333", "1 0 0 0", f'<geom {cap} size="0.05" fromto="0 0 -0.2 0 0 0"/>'
                + _cyl(WHITE, 0.06, "0 0 -0.205", "0 0 -0.03"), l2)
     x, y, z = base_pos
-    return (f'<body name="robot_base" pos="{x} {y} {z}" euler="0 0 {math.radians(base_yaw_deg)}">'
-            f'<geom type="cylinder" size="0.12 {z / 2}" pos="0 0 {-z / 2}" rgba="0.25 0.27 0.3 1"/>'
-            f'<geom type="cylinder" size="0.08 0.05" pos="0 0 0.05" rgba="0.92 0.92 0.95 1" {HID}/>'
-            + _vis("cylinder", GREY, size="0.13 0.004", pos="0 0 0")
-            + _vis("cylinder", DARK, size="0.2 0.01", pos=f"0 0 {-z + 0.01}")
-            + _vis("cylinder", WHITE, size="0.09 0.06", pos="0 0 0.06")
-            + _vis("box", WHITE, size="0.06 0.075 0.045", pos="-0.075 0 0.045")
-            + _vis("cylinder", DARK, size="0.062 0.006", pos="0 0 0.126") +
-            f'<camera name="ego_view" pos="-0.35 0.12 1.0" xyaxes="0 -1 0 0.62 0 0.78" fovy="70"/>'
-            f'{l1}</body>')
+    ped_col = 'contype="0" conaffinity="0"' if mobile else ""
+    robot_body = (f'<body name="robot_base" pos="{"0 0 0" if mobile else f"{x} {y} {z}"}" '
+                  f'euler="0 0 {math.radians(base_yaw_deg)}">'
+                  f'<geom type="cylinder" size="0.12 {z / 2}" pos="0 0 {-z / 2}" rgba="0.25 0.27 0.3 1" {ped_col}/>'
+                  f'<geom type="cylinder" size="0.08 0.05" pos="0 0 0.05" rgba="0.92 0.92 0.95 1" {HID}/>'
+                  + _vis("cylinder", GREY, size="0.13 0.004", pos="0 0 0")
+                  + _vis("cylinder", DARK, size="0.2 0.01", pos=f"0 0 {-z + 0.01}")
+                  + _vis("cylinder", WHITE, size="0.09 0.06", pos="0 0 0.06")
+                  + _vis("box", WHITE, size="0.06 0.075 0.045", pos="-0.075 0 0.045")
+                  + _vis("cylinder", DARK, size="0.062 0.006", pos="0 0 0.126") +
+                  f'<camera name="ego_view" pos="-0.35 0.12 1.0" xyaxes="0 -1 0 0.62 0 0.78" fovy="70"/>'
+                  f'{l1}</body>')
+    if mobile:
+        chassis = (_vis("box", DARK, size="0.36 0.32 0.08", pos=f"0 0 {-z + 0.04}")
+                   + _vis("cylinder", GREY, size="0.06 0.02", pos=f"0.14 0.15 {-z + 0.04}", euler="90 0 0")
+                   + _vis("cylinder", GREY, size="0.06 0.02", pos=f"-0.14 0.15 {-z + 0.04}", euler="90 0 0")
+                   + _vis("cylinder", GREY, size="0.06 0.02", pos=f"0.14 -0.15 {-z + 0.04}", euler="90 0 0")
+                   + _vis("cylinder", GREY, size="0.06 0.02", pos=f"-0.14 -0.15 {-z + 0.04}", euler="90 0 0"))
+        return (f'<body name="mobile_base" pos="{x} {y} {z}">'
+                f'<inertial pos="0 0 {-z / 2:.4f}" mass="20.0" diaginertia="1.5 1.5 1.5"/>'
+                f'<joint name="base_x" type="slide" axis="1 0 0" range="-4.5 4.5" damping="100" armature="2.0"/>'
+                f'{chassis}{robot_body}</body>')
+    return robot_body
 
 
-def actuators_xml() -> str:
+def actuators_xml(mobile: bool = False) -> str:
     arm = "".join(f'<position name="a{i + 1}" joint="joint{i + 1}" kp="{KP[i]}" kv="{KP[i] / 15}" '
                   f'ctrlrange="{RANGES[i][0]} {RANGES[i][1]}"/>' for i in range(7))
     fing = "".join(f'<position name="g_{s}" joint="finger_{s}" kp="800" kv="30" ctrlrange="0 {FINGER_OPEN}" '
                    f'forcerange="-40 40"/>' for s in ("l", "r"))
-    return arm + fing
+    base = '<position name="a_base_x" joint="base_x" kp="25000" kv="1200" ctrlrange="-4.5 4.5"/>' if mobile else ""
+    return arm + fing + base

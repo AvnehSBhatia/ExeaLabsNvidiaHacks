@@ -31,7 +31,7 @@ Built for the NVIDIA × Nebius hackathon by Exea Labs and a team of 30. **Want t
 | Robot: pick mug → sink | ✅ 100% success, friction grasp, physics-checked |
 | Robot: open drawer | ✅ 100% success |
 | Robot: open door | ✅ 100% on both cabinet doors (8/8, two seeds, with and without people). Opens to about 70°: the arm is mounted at 0.75 m, so the far end of the handle arc sits at its reach limit. A mobile base (MAN-3) is what lifts that |
-| Robot: counter → counter | ❌ Skipped. The pick point and the target counter are about 2 m apart and the base doesn't move |
+| Robot: counter → counter | ✅ 100% success with actuated mobile base (MAN-3). Robot picks object from counter, drives across the 2.2 m kitchen run, and places it safely on the destination counter |
 | Robot: close drawer, close door, put mug in drawer, wipe counter | ✅ 100% each (32/32 across all families, seed 5, two people walking). The part starts open for the close tasks; the sponge must travel 0.4 m pressed to the top |
 | Robot: bowl | ✅ Held by the rim (one finger inside the wall). 4/4 bowl → sink. The bowl is now hollow in physics |
 | GR00T-format dataset + validator | ✅ Passes our validator, and the layout matches GR00T's loader source. ⚠️ Not yet loaded by GR00T itself since the latest fixes |
@@ -173,7 +173,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 - **MAN-1: Make the arm look and move like a Panda.** Real link shapes and proportions, a Franka-style hand, a low mount, IK biased to the Panda "ready" posture so the elbow doesn't flip, smooth min-jerk motion, and no clipping. Code is in `arrival/sim/robot.py` and `ik.py`. **The arm currently looks buggy. This is a top priority.**
 - **MAN-2: Open doors.** Done (see `docs/BUILD-LOG.md`). Both cabinet doors open at 100%; the fridge door is not a task yet (MAN-5). Check with `python -m arrival sim --families open_door --episodes 4 --save-preview`.
-- **MAN-3: Mobile base.** Add an actuated base so `counter_to_counter` (about 2 m between pick point and target) is reachable, and add base joints to the state/action spec.
+- **MAN-3: Mobile base.** Done (see `docs/BUILD-LOG.md`). Actuated mobile base (`base_x` slide joint along the counter run, critical damping, sleek chassis and wheels) unlocks long-range manipulation. `counter_to_counter` achieves 100% physics success (mug, bowl, sponge) in both directions. State and action specs dynamically adapt to 9-DoF (`arrival_sim_mobile_panda`, `dof_base: 1`) matching LeRobot v2.1 specifications.
 - **MAN-4: Grasp everything.** Bowl done: a hollow bowl and a rim grasp (see `docs/BUILD-LOG.md`). Cups, apples and bottles are picked by the body. Left: plates and pans are wider than the gripper opening.
 - **MAN-5: New tasks.** Done: close drawer, close door, put the mug away in a drawer, wipe the counter with the sponge (`python -m arrival sim --families close_drawer,close_door,put_in_drawer,wipe_counter`). Left: dishwasher load/unload and the faucet. The joints exist (SIM-3); no task drives them yet.
 - **MAN-6: Real Franka model** *(optional).* Swap in the MuJoCo Menagerie Panda (Apache-2.0) behind a flag, keeping tests offline.

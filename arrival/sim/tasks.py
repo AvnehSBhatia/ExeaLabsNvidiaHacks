@@ -59,12 +59,14 @@ def make_tasks(twin: dict, families: list[str], n: int, seed: int = 0, people: i
                     for c in counters:
                         if c is src:
                             continue
-                        edge = c["position"][0] - (c["size"][0] / 2 - 0.12) * (1 if c["position"][0] > o["position"][0] else -1)
-                        if abs(edge - o["position"][0]) < 1.0:  # base sits between source and target
-                            tgt_xy.append((c, edge))
+                        edge = c["position"][0] - (c["size"][0] / 2 - 0.20) * (1 if c["position"][0] > o["position"][0] else -1)
+                        tgt_xy.append((c, edge))
                 for tgt, tx in tgt_xy:
-                    pool.append({"object_id": o["id"], "object_label": o["label"], "source": src["id"],
-                                 "target": tgt["id"], "target_x": tx, "start": list(o["position"])})
+                    entry = {"object_id": o["id"], "object_label": o["label"], "source": src["id"],
+                             "target": tgt["id"], "target_x": tx, "start": list(o["position"])}
+                    if fam == "counter_to_counter":
+                        entry["mobile"] = True
+                    pool.append(entry)
         elif fam == "put_in_drawer":
             from arrival.sim.scene import drawer_x
             for o in twin["objects"]:

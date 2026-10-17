@@ -147,7 +147,8 @@ def cmd_sim(a) -> int:
     res = collect(twin, fams, a.episodes, a.out, people=a.people, policy_name=a.policy, res=a.res,
                   seed=a.seed, save_preview=a.save_preview,
                   planner_name=a.planner, split=a.split,
-                  use_generated_instructions=(a.instructions == "nemotron"))
+                  use_generated_instructions=(a.instructions == "nemotron"),
+                  mobile_base=getattr(a, "mobile_base", False))
     r = res["report_data"]
     print(f"dataset: {res['dataset']}")
     print(f"report:  {res['report']}")
@@ -171,7 +172,8 @@ def cmd_eval(a) -> int:
 
     try:
         rep = evaluate(twin, fams, a.episodes, policy_name=a.policy, seed=a.seed, people=a.people,
-                       holdout=a.holdout, res=a.res, out_dir=a.out)
+                       holdout=a.holdout, res=a.res, out_dir=a.out,
+                       mobile_base=getattr(a, "mobile_base", False))
     except VLANotConfigured as e:
         print(f"policy vla: {e}", file=sys.stderr)
         return EXIT_USAGE
@@ -197,7 +199,7 @@ def cmd_work(a) -> int:
               file=sys.stderr)
         return EXIT_USAGE
     n = work(Path(a.out), once=a.once, poll=a.poll, episodes=a.episodes, families=fams, people=a.people,
-             res=a.res, seed=a.seed)
+             res=a.res, seed=a.seed, mobile_base=getattr(a, "mobile_base", False))
     print(f"processed {n} job(s)")
     return EXIT_OK
 
@@ -241,6 +243,7 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--scans", default="scans")
     m.add_argument("--seed", type=int, default=0)
     m.add_argument("--save-preview", action="store_true")
+    m.add_argument("--mobile-base", action="store_true", help="enable actuated mobile base for all sim tasks")
     m.set_defaults(fn=cmd_sim)
     e = sub.add_parser("eval", help="score a policy closed-loop in the sim: success, time, human contacts")
     e.add_argument("--room", default="hero_kitchen")
@@ -254,6 +257,7 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--res", type=int, default=128)
     e.add_argument("--out", default="out")
     e.add_argument("--scans", default="scans")
+    e.add_argument("--mobile-base", action="store_true", help="enable actuated mobile base for all sim tasks")
     e.set_defaults(fn=cmd_eval)
     w = sub.add_parser("work", help="process queued uploads under <out>/jobs: twin -> sim dataset -> dataset.zip")
     w.add_argument("--once", action="store_true", help="process one job (or none) and exit")
@@ -265,6 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--res", type=int, default=128)
     w.add_argument("--seed", type=int, default=0)
     w.add_argument("--out", default="out")
+    w.add_argument("--mobile-base", action="store_true", help="enable actuated mobile base for all sim tasks")
     w.set_defaults(fn=cmd_work)
     return p
 
