@@ -41,7 +41,8 @@ class SimEnv:
             src = self.fx[task["source"]]
             obj_pos[o["id"]] = [task["start"][0], task["start"][1], self._top(src) + o["size"][2] / 2 + 0.003]
         base, yaw = self._base_pose(task, obj_pos)
-        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0))
+        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0),
+                         task.get("seed", 0))
         self.model = mujoco.MjModel.from_xml_string(xml)
         self.data = mujoco.MjData(self.model)
         self.qadr = [int(self.model.joint(j).qposadr[0]) for j in robot.ARM_JOINTS]
@@ -58,7 +59,7 @@ class SimEnv:
         free = self._free_floor()
         front = max(f["position"][1] + f["size"][1] / 2 for f in twin["fixtures"])
         self.walkers = Walkers(task.get("people", 0), free, seed=task.get("seed", 0), base_xy=base[:2],
-                               front_y=front) if task.get("people") else None
+                               front_y=front, fixtures=twin["fixtures"]) if task.get("people") else None
         self.safety = SafetyMonitor(self.model)
         mujoco.mj_forward(self.model, self.data)
         self.cameras, self.res = cameras, res
@@ -75,7 +76,8 @@ class SimEnv:
     def _free_floor(self):
         xs = [p for w in self.twin["walls"] for p in (w["start"][0], w["end"][0])]
         ys = [p for w in self.twin["walls"] for p in (w["start"][1], w["end"][1])]
-        deep = max(f["position"][1] + f["size"][1] / 2 for f in self.twin["fixtures"])
+        mid = (min(ys) + max(ys)) / 2  # the work strip runs along the back wall; anything further in is an obstacle
+        deep = max(f["position"][1] + f["size"][1] / 2 for f in self.twin["fixtures"] if f["position"][1] < mid)
         return (min(xs) + 0.4, deep + 0.9, max(xs) - 0.4, max(ys) - 0.3)
 
     def _base_pose(self, task: dict, obj_pos: dict):

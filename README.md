@@ -180,7 +180,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 ### PPL: People & safety (2)
 
-- **PPL-1: Better humans.** Proportioned bodies with walking leg and arm swing, varied clothing colours and heights, and no clipping through counters.
+- **PPL-1: Better humans.** Proportioned bodies with walking leg and arm swing, varied clothing colours and heights, and no clipping through counters. **Done:** fourteen-capsule bodies sized from a seeded height (1.55 to 1.90 m) with seeded shirt, trouser, skin and hair colours; legs and arms swing from a gait phase driven by distance walked and settle when a person stops; waypoint loops are routed round every fixture footprint (`arrival/sim/people.py`), and a test walks three people round an island for 30 s with no limb inside a fixture.
 - **PPL-2: Interactions.** People who stop at the counter, open the fridge, and cross the robot's path. Add a safety metric (minimum robot–human distance) to the episode data, and drop episodes with contact. *Done except the fridge: walkers pause at the counter and cross behind the base, `arrival/sim/safety.py` records the distance, contact episodes are dropped. Opening the fridge needs the door hinge driven by a person, which is still open.*
 
 ### POL: Policy, VLA & VLM (4)
