@@ -98,7 +98,7 @@ def cmd_validate(a) -> int:
             print(f"INVALID: {e}", file=sys.stderr)
         return EXIT_INVALID
     info = json.loads((Path(a.dataset_dir) / "meta" / "info.json").read_text())
-    print(f"OK: {a.dataset_dir} — {info['total_episodes']} episodes, {info['total_frames']} frames, "
+    print(f"OK: {a.dataset_dir}: {info['total_episodes']} episodes, {info['total_frames']} frames, "
           f"{info['total_tasks']} tasks, {info['total_chunks']} chunk(s), {info['total_videos']} videos, "
           f"video_policy={info['arrival_video_policy']}, "
           f"physically_valid={info['arrival_physically_valid']}")

@@ -20,7 +20,7 @@ General robot policies like NVIDIA GR00T are trained on generic kitchens. When a
 
 Built for the NVIDIA × Nebius hackathon by Exea Labs and a team of 30. **Want to help? Jump to [Join in](#join-in-team-plan-for-30-people).** The product spec is [plan.pdf](plan.pdf).
 
-## Does it work? (status, Oct 14 2026)
+## Does it work? (status, Oct 17 2026, checked on a fresh clone; see docs/RELEASE-QA.md)
 
 | Stage | Status |
 |---|---|
@@ -43,7 +43,7 @@ There are two datasets. `python -m arrival sim` writes **physics-simulated** dat
 
 ## Get started (5 minutes)
 
-Requires Python 3.11+ on macOS, Linux or Windows (the suite and the MuJoCo sim run as is on Windows; use `.venv\Scriptsctivate` there). No GPU and no API keys needed.
+Requires Python 3.11+ on macOS, Linux or Windows (the suite and the MuJoCo sim run as is on Windows; use `.venv\Scripts\activate` there). No GPU and no API keys needed.
 
 ```bash
 git clone https://github.com/AvnehSBhatia/ExeaLabsNvidiaHacks.git
@@ -73,7 +73,7 @@ Other commands:
 ```bash
 python -m arrival demo --episodes 1000                         # fast scripted placeholder dataset
 python -m arrival demo --room hero_kitchen --from-roomplan     # build from a RoomPlan JSON export
-python -m arrival sim --families all                           # include the not-yet-working tasks
+python -m arrival sim --families all                           # every family; counter_to_counter is skipped until MAN-3
 python -m arrival eval --episodes 4 --people 2                 # score a policy closed-loop, no dataset written
 ```
 
@@ -111,11 +111,12 @@ Fine-tune GR00T N1.7 (next)                docs/REFERENCE.md#later-gr00t-fine-tu
 | `arrival/tasks/` | Task and variation proposer |
 | `arrival/sim/` | MuJoCo scene, robot, IK, people, policies, data collection |
 | `arrival/export/` | LeRobot v2 writer and validator |
+| `arrival/eval/` | Closed-loop eval harness (`python -m arrival eval`) |
 | `arrival/generate/`, `arrival/render/` | Scripted placeholder generator, schematic renderer, MimicGen and splat stubs |
 | `arrival/models/` | Nebius Token Factory (Nemotron) client |
 | `arrival/web/`, `arrival/jobs/` | Local web page and upload queue |
 | `scans/` | Sample rooms |
-| `tests/` | pytest suite. No network, runs in about 15 s |
+| `tests/` | pytest suite. No network, 145 tests, about 2 minutes on a laptop CPU |
 | `docs/` | Reference, design contracts, access links, build log |
 
 ## Join in: team plan for 30 people
@@ -154,7 +155,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 ### TWN: Twin & scan testing (4)
 
 - **TWN-1: LiDAR accuracy test.** Use the CAP-3 tape measurements to write `tests/test_lidar_accuracy.py`, which compares twin dimensions with the tape measurements. Report the error per room and fail if it's over 5 cm.
-- **TWN-2: Scan regression suite.** Every scan under `scans/` must normalize, compile and render with **no overlapping fixtures, nothing below the floor, and closed walls**. Done: `tests/test_scans.py` runs every `scans/<room>/scan.json` and `roomplan.json` through normalize, compile, `layout.yaml`, a footprint overlap check (a sink or stove inset in its counter is allowed), a floor check, a closed-wall check (1 cm) and a MuJoCo build; the hero `scan.json` overlaps are an expected failure until TWN-6 lands. `python scripts/render_rooms.py` writes a top-down PNG per room to `out/renders/`. New rooms from CAP-3 are picked up with no test changes.
+- **TWN-2: Scan regression suite.** Every scan under `scans/` must normalize, compile and render with **no overlapping fixtures, nothing below the floor, and closed walls**. Done: `tests/test_scans.py` runs every `scans/<room>/scan.json` and `roomplan.json` through normalize, compile, `layout.yaml`, a footprint overlap check (a sink or stove inset in its counter is allowed), a floor check, a closed-wall check (1 cm) and a MuJoCo build. `python scripts/render_rooms.py` writes a top-down PNG per room to `out/renders/`. New rooms from CAP-3 are picked up with no test changes.
 - **TWN-3: RoomPlan coverage.** Handle doors, windows, openings, `polygonCorners` floors, islands, multi-story `story`, and every object category Apple emits (`dishwasher`, `oven`, `washerDryer`, `storage`, `table`, …). Done: doors, windows and openings land in the bundle with their wall and `is_open`, `polygonCorners` floors set the floor extent, a merged multi-story export yields one story per twin, counter-height blocks clear of the walls become `island: true` counters, all 16 Apple categories have a fixture type and a default size, one test per category (`tests/test_roomplan_coverage.py`). Left: non-kitchen categories (bed, sofa, bathtub, …) are a plain `box` in the layout because RoboCasa has no such fixture; doors and windows are in `twin.json` but not in the sim; curved walls and per-wall `polygonCorners` are ignored; no real multi-story export has been seen yet.
 - **TWN-4: RoboCasa-native layout.** Make `layout.yaml` load in real RoboCasa (half extents, `wall_side`, groups). This needs a Linux machine with RoboCasa installed.
 - **TWN-5: Object detection.** RoomPlan doesn't see mugs or bowls. Detect objects in CAP-2 photos (Nemotron Nano Omni via Token Factory, or any detector) and place them in the twin.
@@ -162,7 +163,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 ### SIM: Scene & realism (4)
 
-- **SIM-1: Kitchen visuals.** A recessed sink basin with a faucet, cabinet fronts with gaps and slim handles, toe-kick, countertop overhang, backsplash, stove burners, and a proper fridge. Code is in `arrival/sim/scene.py`. **The room currently looks buggy. This is a top priority.**
+- **SIM-1: Kitchen visuals.** A recessed sink basin with a faucet, cabinet fronts with gaps and slim handles, toe-kick, countertop overhang, backsplash, stove burners, and a proper fridge. Code is in `arrival/sim/scene.py`. Done: recessed cabinet fronts with bar handles, toe-kick, countertop overhang, backsplash, a sink rim and faucet, a gas range with burners and knobs, and a fridge with a fixed freezer door (see `docs/BUILD-LOG.md`).
 - **SIM-2: Lighting & materials.** Key and fill lights, wood/stone/tile textures, and lighting variation that still matches the `dim/neutral/bright` axis.
 - **SIM-3: More moving parts.** Dishwasher door, oven door, microwave, faucet handle, upper cabinets, and drawers in every base cabinet, all on joints with names the policy can target. **Done except the extra drawer row:** oven door, dishwasher and microwave doors, the faucet lever and wall-cabinet doors are named joints with handle sites; `part_names()` in `arrival/sim/scene.py` lists them. A drawer row above the door bay would sit inside the MAN-2 door panel, so it was left out.
 - **SIM-4: More objects.** Plates, cups, bottles, pans, fruit, utensils, with realistic mass, friction and size variation. **Done:** cup, plate, bottle, pan, apple and spatula join the mug, bowl and sponge (`arrival/catalog/objects.py`), with mass scaled by volume, per-material friction and seeded size variation; the expert picks the cup, apple and bottle 4/4. The 1 cm spatula sits under the grasp height, so it is scenery until the grasp rule changes.
@@ -171,7 +172,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 ### MAN: Robot & manipulation (5)
 
-- **MAN-1: Make the arm look and move like a Panda.** Real link shapes and proportions, a Franka-style hand, a low mount, IK biased to the Panda "ready" posture so the elbow doesn't flip, smooth min-jerk motion, and no clipping. Code is in `arrival/sim/robot.py` and `ik.py`. **The arm currently looks buggy. This is a top priority.**
+- **MAN-1: Make the arm look and move like a Panda.** Real link shapes and proportions, a Franka-style hand, a low mount, IK biased to the Panda "ready" posture so the elbow doesn't flip, smooth min-jerk motion, and no clipping. Code is in `arrival/sim/robot.py` and `ik.py`. Done: Panda-shaped visual links on a pedestal with a Franka-style hand, IK pulled toward the ready posture so the elbow stays up, min-jerk motion and via-point pulls (see `docs/BUILD-LOG.md`).
 - **MAN-2: Open doors.** Done (see `docs/BUILD-LOG.md`). Both cabinet doors open at 100%; the fridge door is not a task yet (MAN-5). Check with `python -m arrival sim --families open_door --episodes 4 --save-preview`.
 - **MAN-3: Mobile base.** Add an actuated base so `counter_to_counter` (about 2 m between pick point and target) is reachable, and add base joints to the state/action spec.
 - **MAN-4: Grasp everything.** Bowl done: a hollow bowl and a rim grasp (see `docs/BUILD-LOG.md`). Cups, apples and bottles are picked by the body. Left: plates and pans are wider than the gripper opening.
@@ -181,7 +182,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 ### PPL: People & safety (2)
 
 - **PPL-1: Better humans.** Proportioned bodies with walking leg and arm swing, varied clothing colours and heights, and no clipping through counters.
-- **PPL-2: Interactions.** People who stop at the counter, open the fridge, and cross the robot's path. Add a safety metric (minimum robot–human distance) to the episode data, and drop episodes with contact. *Done except the fridge: walkers pause at the counter and cross behind the base, `arrival/sim/safety.py` records the distance, contact episodes are dropped. Opening the fridge needs the door hinge driven by a person, which is still open.*
+- **PPL-2: Interactions.** People who stop at the counter, open the fridge, and cross the robot's path. Add a safety metric (minimum robot-human distance) to the episode data, and drop episodes with contact. *Done except the fridge: walkers pause at the counter and cross behind the base, `arrival/sim/safety.py` records the distance, contact episodes are dropped. Opening the fridge needs the door hinge driven by a person, which is still open.*
 
 ### POL: Policy, VLA & VLM (4)
 
@@ -207,7 +208,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 - **DEM-1: Hosted page.** Deploy the web app, with a 3D or video viewer for each room and its dataset.
 - **DEM-2: Pitch video.** Re-render `scripts/make_demo_video.py` once SIM-1 and MAN-1 land, and add real scan footage from CAP.
-- **DEM-3: Release QA.** Before each demo, run a fresh-clone install, the full test suite, `sim` + `validate`, and check every README claim. Update the status table.
+- **DEM-3: Release QA.** Before each demo, run a fresh-clone install, the full test suite, `sim` + `validate`, and check every README claim. Update the status table. The checklist and the last run's results are in `docs/RELEASE-QA.md`.
 
 ### Everyone: definition of done for a PR
 
@@ -225,6 +226,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 - [docs/04-contracts.md](docs/04-contracts.md): data schemas
 - [docs/09-later.md](docs/09-later.md): designs for MimicGen, splat, Cosmos and fine-tune
 - [docs/BUILD-LOG.md](docs/BUILD-LOG.md): what changed and why
+- [docs/RELEASE-QA.md](docs/RELEASE-QA.md): the release checklist and the last QA run
 - [docs/00-START-HERE.md](docs/00-START-HERE.md): the original MVP build contract
 
 ## License

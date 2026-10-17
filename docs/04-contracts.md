@@ -350,7 +350,7 @@ Internal, before export:
 }
 ```
 
-`joint` length 7. `gripper` is 0 open and 1 closed. `eef` and `object_position` are meters, Z-up. These cartesian channels are how `sim_texture` draws. They are also written into a sidecar that is **not** part of the LeRobot folder: `out/datasets/<room_id>.cartesian.jsonl`, one JSON object per successful episode, with `episode_index` and `frames`.
+`joint` length 7. `gripper` is 0 open and 1 closed. `eef` and `object_position` are meters, Z-up. These cartesian channels are how `sim_texture` draws. They are also written into a sidecar next to the meta files, `meta/arrival_cartesian.jsonl`, one JSON object per successful episode, with `episode_index` and `frames`; GR00T's loader ignores it.
 
 ### Scripted motion
 
@@ -424,12 +424,16 @@ State and action are float32 length 8: 7 joints then gripper. Action at frame i 
   "dof_gripper": 1,
   "control": "absolute_joint_position",
   "joints_are_placeholder": true,
-  "cartesian_sidecar": "../hero_kitchen.cartesian.jsonl",
+  "cartesian_sidecar": "arrival_cartesian.jsonl",
   "note": "single_arm values are zeros until a physics generator fills them. Do not fine-tune on this dataset while joints_are_placeholder is true."
 }
 ```
 
 The sidecar path is relative to `meta/`.
+
+### The sim dataset
+
+`python -m arrival sim` writes the same layout to `out/datasets/<room_id>_sim/` with these differences, all of them visible in the meta files: `robot_type` and `embodiment` are `arrival_sim_panda`; `arrival_generator` is `mujoco_scripted_ik`, `arrival_physically_valid` is `true`, `arrival_appearance` is `mujoco_raster`, and `info.json` also carries `arrival_grasp` (`friction`), `arrival_success_check` (`physics`), `arrival_room_id` and `arrival_families`; `joints_are_placeholder` is `false` and the state holds the simulated joint positions, with the gripper channel the finger opening in metres; there are two videos, `observation.images.ego_view` and `observation.images.wrist`, at `--res` (default 128) square, both listed in `modality.json`; there is no cartesian sidecar; `episodes.jsonl` carries the per-episode `arrival_*` fields listed below.
 
 ### Parquet columns
 
@@ -619,6 +623,6 @@ The `sim` report (`out/reports/<room_id>_sim.json`) adds `human_contacts` (total
 - Sum of episode lengths equals `total_frames`.
 - If `arrival_video_policy` is `sparse`, at least 8 mp4s exist for a 1,000-episode dataset, and at least 1 mp4 exists for a dataset with fewer than 125 episodes.
 - `arrival_physically_valid` is a bool.
-- Exits 0 when a required file is missing or a slice is wrong.
+- Exits 1, with one `INVALID: ...` line per problem on stderr, when a required file is missing or a slice is wrong.
 
 It does not download GR00T.

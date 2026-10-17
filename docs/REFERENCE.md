@@ -81,7 +81,7 @@ python scripts/render_rooms.py tests/fixtures/roomplan/amal.json
 - **Arm**: a procedurally built 7-DoF Panda-like arm (not the Franka asset) driven through IK, so joint states in the dataset are the simulated joint positions, plus a parallel gripper that holds objects by friction contact.
 - **People**: kinematic bodies walking seeded loops through the room: a free point, a lane that crosses behind the robot base, a 2 to 4 s stop at the counter, back out. They move and occlude; they are not simulated humans and they do not collide. `arrival/sim/safety.py` measures the horizontal clearance between every robot collision geom and each person every control step; an episode whose minimum reaches 0 is a human contact and is dropped from the dataset even when the task succeeded. The value is written per episode as `arrival_min_human_distance_m` and `arrival_human_contact` in `meta/episodes.jsonl`.
 - **Cameras**: rendered with MuJoCo's offscreen renderer.
-- **Policies** behind one interface: a scripted expert (default), a VLM planner via Nebius Token Factory (needs `TOKEN_FACTORY_API_KEY`; placeholder until a key is set), and a VLA client for a GR00T policy server (placeholder; no server is shipped or run here).
+- **Policies** behind one interface: a scripted expert (default), a VLM planner via Nebius Token Factory (`--planner vlm`; needs `TOKEN_FACTORY_API_KEY`, falls back to the rule parser without one, and caches responses in `arrival/models/nemotron_cache.json`), and a VLA client for a GR00T policy server (placeholder; no server is shipped or run here).
 - **Success is checked in physics** (object resting in the target region, drawer/door joint past threshold), not asserted by the script.
 
 Run it:
@@ -92,7 +92,7 @@ python -m arrival sim --episodes 8 --people 2 --save-preview   # contact sheet +
 python -m arrival validate out/datasets/hero_kitchen_sim
 ```
 
-Status as of Oct 14 (scripted expert, friction grasps, physics-checked):
+Status as of Oct 17 (scripted expert, friction grasps, physics-checked; 16/16 over these seven families with `--families all --episodes 16 --people 2 --seed 1` on a fresh clone):
 
 | Family | Success | Note |
 |---|---|---|
@@ -105,7 +105,7 @@ Status as of Oct 14 (scripted expert, friction grasps, physics-checked):
 | `put_in_drawer` | 100% | drawer starts open 0.14 m, mug set on the exposed part of the tray; success is the mug resting inside the tray |
 | `wipe_counter` | 100% | sponge pinched and dragged two strokes; success needs 0.4 m travelled pressed to the top and the sponge back on it |
 
-Defaults are `counter_to_sink,open_drawer`. `--families all` includes the broken ones (their failures are dropped and counted). The VLM planner is not yet wired into `collect()`, and the VLA client has never run against a real GR00T server.
+Defaults are `counter_to_sink,open_drawer`. `--families all` runs every family; `counter_to_counter` is skipped with a log line until there is a mobile base (MAN-3), and any failed attempt is dropped and counted. `--planner vlm` sends each instruction through the Nemotron planner (POL-1), `--instructions nemotron --split train|eval` draws generated wordings with a held-out set (POL-2). The VLA client has never run against a real GR00T server.
 
 ### Closed-loop eval
 
@@ -155,7 +155,7 @@ out/
   twins/<stem>_<job_id>/, datasets/<stem>_<job_id>_sim/   what `work` compiled and simulated for an upload
 ```
 
-Embodiment is RoboCasa's single-arm Panda (7 joints + 1 gripper). The two task families are `counter_to_sink` and `counter_to_counter`. They vary by object, start pose, lighting, and instruction wording.
+The demo dataset's embodiment label is `robocasa_panda` (7 joints + 1 gripper, placeholder joints) and its two task families are `counter_to_sink` and `counter_to_counter`; the sim dataset is labelled `arrival_sim_panda` and lists its families in `arrival_families` (see the sim dataset notes in [04-contracts.md](04-contracts.md)). Both vary by object, start pose, lighting, and instruction wording.
 
 ## Credentials
 

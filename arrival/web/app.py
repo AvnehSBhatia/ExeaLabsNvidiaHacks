@@ -208,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
             scan = _read_json(self.scans_dir / room / "scan.json") or {}
             counts = self._task_counts(room)
             if counts is None:
-                counts_html = ("<span class='muted'>not generated — run "
+                counts_html = ("<span class='muted'>not generated, run "
                                "<code>python -m arrival demo</code></span>")
             else:
                 counts_html = "<br>".join(
@@ -220,7 +220,7 @@ class Handler(BaseHTTPRequestHandler):
                 "<span>(exists)</span>" if exists else "<span class='muted'>(missing)</span>"
             )
             dl = (f"<a href='/download/{esc(room)}'>{esc(room)}.zip</a>" if exists
-                  else "<span class='muted'>—</span>")
+                  else "<span class='muted'>none</span>")
             rows.append(
                 f"<tr><td><a href='/rooms/{esc(room)}'>{esc(room)}</a></td>"
                 f"<td><code>{esc(scan.get('geometry_source', 'unknown'))}</code></td>"
@@ -326,7 +326,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             tasks_html = (
                 "<p class='muted'>Families <code>counter_to_sink</code> and "
-                "<code>counter_to_counter</code>. Not generated — run "
+                "<code>counter_to_counter</code>. Not generated, run "
                 "<code>python -m arrival demo</code>.</p>"
             )
 
