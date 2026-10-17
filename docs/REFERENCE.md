@@ -105,7 +105,7 @@ Status as of Oct 14 (scripted expert, friction grasps, physics-checked):
 | `put_in_drawer` | 100% | drawer starts open 0.14 m, mug set on the exposed part of the tray; success is the mug resting inside the tray |
 | `wipe_counter` | 100% | sponge pinched and dragged two strokes; success needs 0.4 m travelled pressed to the top and the sponge back on it |
 
-Defaults are `counter_to_sink,open_drawer`. `--families all` includes the broken ones (their failures are dropped and counted). The VLM planner is not yet wired into `collect()`, and the VLA client has never run against a real GR00T server.
+Defaults are `counter_to_sink,open_drawer`. `--families all` runs every family in `arrival.sim.tasks.SIM_FAMILIES` (pick and place, drawer and door open/close, put in drawer, wipe, open oven, open dishwasher, turn on faucet, load and unload the dishwasher); a family with no reachable variation in the room is skipped with a log line, and failures are dropped and counted. The VLM planner is not yet wired into `collect()`, and the VLA client has never run against a real GR00T server.
 
 ### Closed-loop eval
 

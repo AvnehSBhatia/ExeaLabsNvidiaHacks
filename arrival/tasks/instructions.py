@@ -57,6 +57,36 @@ FALLBACK_TEMPLATES = {
         "Unlatch and swing the cabinet door open.",
         "Pull open the door to reveal the cabinet interior.",
     ],
+    "open_oven": [
+        "Open the oven.",
+        "Pull the oven door down.",
+        "Open the oven door of the {name}.",
+        "Lower the oven door until it is flat.",
+    ],
+    "open_dishwasher": [
+        "Open the dishwasher.",
+        "Pull the dishwasher door open.",
+        "Open the {name} door.",
+        "Fold the dishwasher door down.",
+    ],
+    "turn_on_faucet": [
+        "Turn on the faucet.",
+        "Lift the faucet lever to start the water.",
+        "Turn the tap on.",
+        "Push the faucet handle up to run the water.",
+    ],
+    "load_dishwasher": [
+        "Put the {name} in the dishwasher.",
+        "Load the {name} into the dishwasher rack.",
+        "Move the {name} from the counter into the dishwasher.",
+        "Set the {name} on the pulled-out dishwasher rack.",
+    ],
+    "unload_dishwasher": [
+        "Take the {name} out of the dishwasher.",
+        "Unload the {name} onto the counter.",
+        "Move the {name} from the dishwasher rack to the counter.",
+        "Lift the {name} off the dishwasher rack and put it on the counter.",
+    ],
 }
 
 

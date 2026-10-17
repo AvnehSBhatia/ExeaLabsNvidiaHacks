@@ -22,6 +22,7 @@ REVEAL, INSET, FRONT_T, KICK = 0.003, 0.015, 0.018, 0.10
 UPPER_Z0, UPPER_H, UPPER_D, UPPER_DOOR_MAX = 1.56, 0.60, 0.32, 0.60  # wall cabinets over a counter run; the wrist
 # reaches 1.50 m over the back of the counter when it drops into the sink, so the cabinets start above that
 DOOR_FLAT = 1.5  # bottom-hinged doors (oven, dishwasher) stop just short of horizontal
+RACK_Z, RACK_OUT = 0.52, 0.45  # dishwasher upper rack: tray height and how far it slides out over the open door
 
 
 def _box(name, pos, size, rgba, extra=""):
@@ -115,8 +116,8 @@ def _sink_visuals(hx, hw, hd, sy, h) -> list[str]:
 def _faucet_lever_xml(sid: str, hx: float, y0: float, h: float) -> str:
     """Single-lever mixer handle on the faucet column: hinge `{sid}_faucet`, q > 0 lifts the lever (water on)."""
     return (f'<body name="{sid}_faucet_lever" pos="{hx + 0.012:.4f} {y0:.4f} {h + 0.19:.4f}">'
-            f'<joint name="{sid}_faucet" type="hinge" axis="0 -1 0" range="0 1.2" damping="0.05" frictionloss="0.05"/>'
-            f'<inertial pos="0.025 0 0.005" mass="0.05" diaginertia="1e-5 1e-5 1e-5"/>'
+            f'<joint name="{sid}_faucet" type="hinge" axis="0 -1 0" range="0 1.2" damping="0.5" frictionloss="0.05"/>'
+            f'<inertial pos="0 0 0" mass="0.05" diaginertia="1e-5 1e-5 1e-5"/>'  # balanced on its cartridge: it stays
             f'<geom name="{sid}_faucet_handle" type="capsule" size="0.006" fromto="0 0 0 0.05 0 0.01" rgba="{STEEL}" '
             f'{DRAWER}/><site name="{sid}_faucet_handle" pos="0.04 0 0.008" size="0.005"/></body>')
 
@@ -313,13 +314,29 @@ def _flap_door_xml(name: str, pivot, width: float, height: float, mass: float, r
 
 
 def dishwasher_xml(f: dict) -> str:
-    """Floor-standing dishwasher: carcass box and a bottom-hinged front door with the handle bar near the top."""
+    """Floor-standing dishwasher: a hollow carcass (bottom, top, back and two sides), a bottom-hinged front door
+    with the handle bar near the top, and an upper rack (`{fid}_rack`, slide along +y) that rolls out over the
+    open door so an arm on a pedestal can reach it; the lower rack would sit below a fixed-base arm's reach."""
     (cx, cy, _), (sx, sy, h) = f["position"], f["size"]
     fid, ys = f["id"], sy / 2
-    g = [_box(f"{fid}_box", (0, -0.01, h / 2), (sx, sy - 0.02, h), "0.55 0.56 0.58 1"),
+    shell, t = "0.55 0.56 0.58 1", 0.03
+    g = [_box(f"{fid}_bottom", (0, -0.01, 0.04), (sx, sy - 0.02, 0.08), shell),
+         _box(f"{fid}_top", (0, -0.01, h - t / 2), (sx, sy - 0.02, t), shell),
+         _box(f"{fid}_back", (0, -ys + t / 2, h / 2), (sx, t, h), shell),
+         _box(f"{fid}_left", (-sx / 2 + t / 2, -0.01, h / 2), (t, sy - 0.02, h), shell),
+         _box(f"{fid}_right", (sx / 2 - t / 2, -0.01, h / 2), (t, sy - 0.02, h), shell),
          _vr(-sx / 2, sx / 2, ys - 0.012, ys + 0.004, h - 0.08, h - 0.01, "0.2 0.2 0.21 1"),
          _vr(-sx / 2, sx / 2, ys - 0.01, ys + 0.003, 0, 0.08, DARK),
          _flap_door_xml(f"{fid}_door", (0, ys + 0.006, 0.08), sx - 0.04, h - 0.18, 5.0, STEEL, handle_dz=0.05)]
+    rw, rd, rail = sx - 2 * t - 0.06, sy - 0.12, 0.04
+    rack = [f'<body name="{fid}_rack" pos="0 0 {RACK_Z}">'
+            f'<joint name="{fid}_rack" type="slide" axis="0 1 0" range="0 {RACK_OUT}" damping="5" frictionloss="0.5"/>'
+            f'<inertial pos="0 0 0.01" mass="1.2" diaginertia="0.02 0.02 0.02"/>'
+            + _box(f"{fid}_rack_tray", (0, 0, 0), (rw, rd, 0.02), "0.7 0.72 0.75 1", DRAWER)]
+    for k, (px, py, wx, wy) in enumerate([(0, rd / 2 - 0.005, rw, 0.01), (0, -rd / 2 + 0.005, rw, 0.01),
+                                          (rw / 2 - 0.005, 0, 0.01, rd), (-rw / 2 + 0.005, 0, 0.01, rd)]):
+        rack.append(_box(f"{fid}_rack_rail{k}", (px, py, 0.01 + rail / 2), (wx, wy, rail), "0.7 0.72 0.75 1", DRAWER))
+    g.append("".join(rack) + "</body>")
     return f'<body name="{fid}" pos="{cx} {cy} 0" euler="0 0 {f.get("yaw", 0)}">' + "".join(g) + "</body>"
 
 
@@ -447,6 +464,7 @@ def part_names(twin: dict) -> list[dict]:
             add(fid, f"{fid}_oven_door", "hinge", 1.3)
         elif t == "dishwasher":
             add(fid, f"{fid}_door", "hinge", 1.3)
+            parts.append({"fixture": fid, "joint": f"{fid}_rack", "site": None, "kind": "slide", "open": RACK_OUT})
         elif t == "microwave":
             add(fid, f"{fid}_door", "hinge", 1.2)
     return parts

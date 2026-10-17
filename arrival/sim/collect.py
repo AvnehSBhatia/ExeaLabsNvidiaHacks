@@ -13,7 +13,7 @@ import numpy as np
 from arrival.sim import robot
 from arrival.sim.people import Walkers
 from arrival.sim.safety import SafetyMonitor
-from arrival.sim.scene import build_mjcf, door_w, drawer_x
+from arrival.sim.scene import DOOR_FLAT, RACK_OUT, build_mjcf, door_w, drawer_x
 
 FPS = 20
 SUBSTEPS = 25  # 0.002 s physics -> 20 Hz control
@@ -23,6 +23,11 @@ DRAWER_OPEN_PUT = 0.14  # start state for put_in_drawer: wide enough for a mug o
 # can then park straight in front without the pulled-out front reaching its column
 DOOR_OPEN = np.radians(70)  # start state for close_door; open_door counts > 60 deg as open
 WIPE_MIN = 0.4  # metres the sponge must travel pressed to the counter for wipe_counter to count
+FLAP_OPEN = 1.0  # rad; open_oven / open_dishwasher count a bottom-hinged door past this as open
+FAUCET_ON = 0.6  # rad; the lever lifted past this is water on (range is 0 to 1.2)
+FAUCET_STANDOFF = 0.34  # base column to counter front for turn_on_faucet (0.28 elsewhere): the lever is at the back
+# of the counter above shoulder height, and a horizontal hand reaches it with less joint strain from further out
+FLAP_MARGIN = 0.06  # open_oven / open_dishwasher: base column edge to where the open door's top edge lands
 
 
 def _front(f: dict) -> np.ndarray:
@@ -40,6 +45,9 @@ class SimEnv:
             o = self.objs[task["object_id"]]
             src = self.fx[task["source"]]
             obj_pos[o["id"]] = [task["start"][0], task["start"][1], self._top(src) + o["size"][2] / 2 + 0.003]
+        if task["family"] == "unload_dishwasher":  # the object starts in the pulled-out rack
+            xy, z = self._rack_spot(task)
+            obj_pos[task["object_id"]] = [xy[0], xy[1], z + self.objs[task["object_id"]]["size"][2] / 2 + 0.003]
         base, yaw = self._base_pose(task, obj_pos)
         xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0))
         self.model = mujoco.MjModel.from_xml_string(xml)
@@ -53,6 +61,9 @@ class SimEnv:
             jn = f'{task["fixture"]}_door' if task["family"] == "close_door" else f'{task["fixture"]}_drawer0'
             start = {"close_drawer": DRAWER_OPEN, "close_door": DOOR_OPEN, "put_in_drawer": DRAWER_OPEN_PUT}
             self.data.qpos[int(self.model.joint(jn).qposadr[0])] = start[task["family"]]
+        if task["family"] in ("load_dishwasher", "unload_dishwasher"):  # door flat, upper rack rolled out over it
+            self.data.qpos[int(self.model.joint(f'{task["fixture"]}_door').qposadr[0])] = DOOR_FLAT
+            self.data.qpos[int(self.model.joint(f'{task["fixture"]}_rack').qposadr[0])] = RACK_OUT
         self.data.ctrl[:] = list(robot.HOME) + [robot.FINGER_OPEN] * 2
         self.wiped = 0.0  # xy distance the sponge travelled while pressed to the counter (wipe_counter)
         free = self._free_floor()
@@ -94,6 +105,32 @@ class SimEnv:
             p = np.array(obj_pos[task["object_id"]])
             n = _front(src)
             base = (p[0], src["position"][1] + n[1] * (src["size"][1] / 2 + 0.28), 0.75)
+        elif fam in ("open_oven", "open_dishwasher"):
+            # straight in front of the bar, just far enough out that the door swings all the way down to flat
+            # without its top edge reaching the base column; parking beside the swing instead puts the wrist
+            # under the arm for a horizontal grasp
+            f = self.fx[task["fixture"]]
+            n = _front(f)
+            door_h = f["size"][2] - (0.24 if fam == "open_oven" else 0.18)
+            out = f["size"][1] / 2 + door_h + 0.12 + FLAP_MARGIN
+            base = (f["position"][0] + n[0] * out, f["position"][1] + n[1] * out, 0.75)
+        elif fam == "turn_on_faucet":
+            # in front of the counter at the sink, closer than for counter_to_sink: the lever is at the back of the
+            # counter, at the edge of what a horizontal hand reaches from the usual parking spot
+            s = self.fx[task["fixture"]]
+            c = next(c for c in self.twin["fixtures"] if c["type"] == "counter"
+                     and abs(s["position"][0] - c["position"][0]) < c["size"][0] / 2)
+            n = _front(c)
+            base = (s["position"][0], c["position"][1] + n[1] * (c["size"][1] / 2 + FAUCET_STANDOFF), 0.75)
+        elif fam in ("load_dishwasher", "unload_dishwasher"):
+            # beside the dishwasher, in front of the counter, so the flat door and the rolled-out rack stay clear of
+            # the base column and both the rack and the counter spot are within reach
+            from arrival.sim.tasks import DISHWASHER_SIDE
+
+            d = self.fx[task["fixture"]]
+            n = _front(d)
+            side = 1 if task["start"][0] > d["position"][0] else -1
+            base = (d["position"][0] + side * DISHWASHER_SIDE, d["position"][1] + n[1] * (d["size"][1] / 2 + 0.28), 0.75)
         elif fam == "put_in_drawer":
             # straight in front, between the mug and the drawer, just beyond the pulled-out front and its handle;
             # parking beside the drawer instead puts the elbow into whatever appliance flanks the counter
@@ -177,6 +214,30 @@ class SimEnv:
         xy = tray.xpos[:2] + n[:2] * (mid - along)  # keep the drawer's own x; the counter centre is not the drawer
         return np.array([xy[0], xy[1], tray.xpos[2] + half[2] + self.obj_half_h(task["object_id"]) + 0.01])
 
+    def _rack_spot(self, task: dict):
+        """(xy, z of an object's base) in the middle of the part of the rack that is out past the dishwasher front,
+        computed from the twin (before the model exists)."""
+        from arrival.sim.scene import RACK_Z
+
+        d = self.fx[task["fixture"]]
+        n = _front(d)
+        xy = np.array(d["position"][:2]) + n[:2] * (d["size"][1] / 2 + 0.15)
+        return xy, RACK_Z + 0.01
+
+    def rack_place_point(self, task: dict) -> np.ndarray:
+        xy, z = self._rack_spot(task)
+        return np.array([xy[0], xy[1], z + self.obj_half_h(task["object_id"]) + 0.01])
+
+    def counter_place_point(self, task: dict) -> np.ndarray:
+        """Set-down spot on the counter for unload_dishwasher: where the object started in the twin."""
+        p = task["start"]
+        return np.array([p[0], p[1], self._top(self.fx[task["source"]]) + self.obj_half_h(task["object_id"]) + 0.012])
+
+    def flap_geometry(self, task: dict):
+        """Hinge axis point, handle site and the door body rotation for a bottom-hinged door."""
+        b = self.data.body(task["joint"])
+        return b.xpos.copy(), self.site_pos(task["handle"]), b.xmat.reshape(3, 3).copy()
+
     def door_geometry(self, task: dict):
         b = self.data.body(f'{task["fixture"]}_door')
         return b.xpos.copy(), self.site_pos(f'{task["fixture"]}_door_handle'), b.xmat.reshape(3, 3).copy()
@@ -248,10 +309,30 @@ class SimEnv:
                       and abs(p[2] - (self._top(src) + self.obj_half_h(oid))) < 0.025)
             return bool(on_top and self.wiped >= WIPE_MIN and v < 0.05), {
                 "object_pos": p.round(4).tolist(), "wiped_m": round(self.wiped, 3)}
+        if fam == "load_dishwasher":
+            oid = task["object_id"]
+            p = self.body_pos(oid)
+            v = float(np.linalg.norm(self.data.joint(oid).qvel[:3]))
+            tray = self.data.geom(f'{task["fixture"]}_rack_tray')
+            half = self.model.geom(f'{task["fixture"]}_rack_tray').size
+            local = tray.xmat.reshape(3, 3).T @ (p - tray.xpos)
+            inside = abs(local[0]) < half[0] - 0.02 and abs(local[1]) < half[1] - 0.02
+            resting = abs(local[2] - (half[2] + self.obj_half_h(oid))) < 0.03
+            return bool(inside and resting and v < 0.05), {"object_pos": p.round(4).tolist(), "object_speed": round(v, 4)}
+        if fam == "unload_dishwasher":
+            oid = task["object_id"]
+            p = self.body_pos(oid)
+            v = float(np.linalg.norm(self.data.joint(oid).qvel[:3]))
+            c = self.fx[task["source"]]
+            (cx, cy, _), (sx, sy, _) = c["position"], c["size"]
+            inside = abs(p[0] - cx) < sx / 2 - 0.01 and abs(p[1] - cy) < sy / 2 - 0.01
+            ok = inside and abs(p[2] - (self._top(c) + self.obj_half_h(oid))) < 0.025 and v < 0.05
+            return bool(ok), {"object_pos": p.round(4).tolist(), "object_speed": round(v, 4)}
         jn = task["joint"]
         q = float(self.data.joint(jn).qpos[0])
         ok = {"open_drawer": q > 0.15, "open_door": q > np.radians(60),
-              "close_drawer": q < 0.03, "close_door": q < np.radians(5)}[fam]
+              "close_drawer": q < 0.03, "close_door": q < np.radians(5),
+              "open_oven": q > FLAP_OPEN, "open_dishwasher": q > FLAP_OPEN, "turn_on_faucet": q > FAUCET_ON}[fam]
         return bool(ok), {"joint": jn, "qpos": round(q, 4)}
 
 
@@ -287,6 +368,21 @@ def run_episode(env: SimEnv, policy, task: dict, max_steps: int = 400, preview: 
             "safety": env.safety.summary()}
 
 
+def finish_task(t: dict) -> dict:
+    """Adds the joint and handle names the expert drives for a task from make_tasks (shared with the eval harness)."""
+    if t["family"] in ("open_drawer", "close_drawer", "put_in_drawer"):
+        t["handle"], t["joint"] = f'{t["fixture"]}_drawer0_handle', f'{t["fixture"]}_drawer0'
+    elif t["family"] in ("open_door", "close_door"):
+        t["joint"] = f'{t["fixture"]}_door'
+    elif t["family"] == "open_oven":
+        t["joint"], t["handle"] = f'{t["fixture"]}_oven_door', f'{t["fixture"]}_oven_door_handle'
+    elif t["family"] in ("open_dishwasher", "load_dishwasher", "unload_dishwasher"):
+        t["joint"], t["handle"] = f'{t["fixture"]}_door', f'{t["fixture"]}_door_handle'
+    elif t["family"] == "turn_on_faucet":
+        t["joint"], t["handle"] = f'{t["fixture"]}_faucet', f'{t["fixture"]}_faucet_handle'
+    return t
+
+
 def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path = "out", people: int = 2,
             policy_name: str = "scripted", res: int = 128, seed: int = 0, save_preview: bool = False,
             planner_name: str = "rule", cache_path: str | Path | None = None,
@@ -302,10 +398,7 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
     tasks = make_tasks(twin, families, episodes, seed=seed, people=people,
                        split=split, use_generated_instructions=use_generated_instructions, log=log)
     for t in tasks:
-        if t["family"] in ("open_drawer", "close_drawer", "put_in_drawer"):
-            t["handle"], t["joint"] = f'{t["fixture"]}_drawer0_handle', f'{t["fixture"]}_drawer0'
-        elif t["family"] in ("open_door", "close_door"):
-            t["joint"] = f'{t["fixture"]}_door'
+        finish_task(t)
     policy = ScriptedExpert() if policy_name == "scripted" else VLAClient()
     planner = VLMPlanner(log=log, cache_path=cache_path) if planner_name == "vlm" else None
     writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"))

@@ -211,7 +211,7 @@ Moving parts in the sim (`arrival.sim.scene.part_names(twin)`): each is a joint,
 | sink inside a counter | `<sink_id>_faucet` (hinge, 0 to 1.2 rad; the lever up is water on) |
 | stove | `<id>_oven_door` (hinge about the bottom edge, 0 to 1.5 rad; closed is held by gravity) |
 | fridge_bottom_freezer | `<id>_door` (hinge, 0 to 2.0 rad) |
-| dishwasher | `<id>_door` (hinge about the bottom edge, 0 to 1.5 rad); floor-standing; a counter run whose end overlaps it is trimmed back, like a fridge or stove (an appliance wholly inside a run is not cut out) |
+| dishwasher | `<id>_door` (hinge about the bottom edge, 0 to 1.5 rad), `<id>_rack` (slide, 0 to 0.45 m: the upper rack rolls out over the open door; the carcass is hollow so it can); floor-standing; a counter run whose end overlaps it is trimmed back, like a fridge or stove (an appliance wholly inside a run is not cut out) |
 | microwave | `<id>_door` (hinge on the left edge, 0 to 1.9 rad); the fixture `position` is the box centre, so it sits on a counter top |
 
 ## Twin

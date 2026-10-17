@@ -28,6 +28,12 @@ class Policy:
         raise NotImplementedError
 
 
+FAUCET_UNDER, FAUCET_PUSH = 0.045, 0.05  # m: closed fingers start this far below the lever tip, then travel up this far
+FLAP_TILTS = (0.0, 0.35, 0.7)  # rad below the door's horizontal for the hand on a flap-door bar; chosen per task
+FLAP_RELEASE = 0.5  # rad; a bottom-hinged door is let go here and falls to its flat stop (its handle swings
+# toward the base as it opens, and past this angle the wrist would have to fold back under the arm)
+
+
 class ScriptedExpert(Policy):
     """Plans eef waypoints for the task, solves IK per waypoint (biased toward HOME), then plays joint targets
     with min-jerk timing; waypoints flagged `via` are passed through without stopping."""
@@ -181,7 +187,98 @@ class ScriptedExpert(Policy):
             out.append((out[-1][0], out[-1][1], o, self.hold_steps))
             out.append((out[-1][0] + 0.15 * up, out[-1][1], o, s))
             return out
+        if fam in ("open_oven", "open_dishwasher"):
+            # The bar sits on the outside of a bottom-hinged door, so a top-down grasp would put the hand body in
+            # the panel as soon as the door tilts. The hand points into the panel with the fingers closing across
+            # the bar vertically, and that frame turns with the door; at FLAP_RELEASE the gripper opens and gravity
+            # takes the door to its flat stop.
+            pivot, h, _ = env.flap_geometry(task)
+            n = env.pull_axis(task)  # outward normal of the closed panel
+            s, up = self.seg_steps, np.array([0, 0, 1.0])
+            a = np.cross(up, n)  # hinge axis direction
+            rel = h - pivot
+
+            def pt(q):
+                """Handle position after the door turns q about the hinge (top edge forward and down)."""
+                return pivot + rel * np.cos(q) + np.cross(a, rel) * np.sin(q) + a * np.dot(a, rel) * (1 - np.cos(q))
+
+            def nrm(q):
+                return n * np.cos(q) - up * np.sin(q)
+
+            def ori(q, tilt):
+                # pointing into the panel and `tilt` below the door's horizontal, fingers closing along the door's
+                # up direction tilted the same way; a bigger tilt keeps the wrist higher and closer to the base
+                nq, uq = nrm(q), up * np.cos(q) + n * np.sin(q)
+                z = -nq * np.cos(tilt) - uq * np.sin(tilt)
+                y = uq * np.cos(tilt) - nq * np.sin(tilt)
+                if np.dot(y, env.data.site("eef").xmat.reshape(3, 3)[:, 1]) < 0:
+                    y = -y
+                return np.column_stack([np.cross(y, z), y, z])
+
+            # sign check for pt: the handle must move outward (+n) as q grows
+            if np.dot(pt(0.3) - pt(0.0), n) < 0:
+                a = -a
+
+            def chain(tilt):
+                out = [(pt(0) + 0.18 * n + 0.05 * up, ori(0, tilt), o, s), (pt(0) + 0.015 * n, ori(0, tilt), o, s),
+                       (pt(0) + 0.015 * n, ori(0, tilt), c, self.hold_steps)]
+                for k in range(1, 9):
+                    q = FLAP_RELEASE * k / 8
+                    out.append((pt(q) + 0.015 * nrm(q), ori(q, tilt), c, s // 2, k < 8))
+                q = FLAP_RELEASE
+                out.append((pt(q) + 0.015 * nrm(q), ori(q, tilt), o, self.hold_steps))
+                out.append((pt(q) + 0.12 * nrm(q) + 0.15 * up, ori(q, tilt), o, s))
+                return out
+
+            # which tilt reaches depends on the bar's height and distance (oven bars sit higher than dishwasher
+            # bars), so take the candidate whose whole chain has the smallest IK residual
+            return min((chain(t) for t in FLAP_TILTS), key=lambda wps: self._chain_error(env, wps))
+        if fam == "turn_on_faucet":
+            # push the lever tip up from below with the closed fingers: hand horizontal, pointing at the wall
+            tip = env.site_pos(task["handle"])
+            n = env.pull_axis(task)  # the counter front direction; the lever sits at the back of the counter
+            R = ik.facing(-n)
+            if np.dot(R[:, 1], env.data.site("eef").xmat.reshape(3, 3)[:, 1]) < 0:
+                R = R @ np.diag([-1, -1, 1])  # same grasp, half a turn less wrist roll
+            s = self.seg_steps
+            # the tip rises at most 3.8 cm over the lever's 1.2 rad range, so the push stops short of driving it
+            # into the stop: 5 cm of hand travel from 3.5 cm below the tip lands the lever near 0.9 rad
+            under = tip - np.array([0, 0, FAUCET_UNDER])
+            lift = FAUCET_PUSH
+            return [(under + 0.12 * n + np.array([0, 0, 0.06]), R, c, s), (under + 0.12 * n, R, c, s),
+                    (under, R, c, s)] + [(under + np.array([0, 0, lift * k / 3]), R, c, s // 2, k < 3) for k in (1, 2, 3)] + [
+                    (under + np.array([0, 0, lift]) + 0.12 * n, R, c, s)]
+        if fam in ("load_dishwasher", "unload_dishwasher"):
+            # pick by the body as for counter_to_sink; the set-down into the rack (or onto the counter) is a chain of
+            # short via-point steps like put_in_drawer, so the joint-space path does not bow through the rack rails
+            p = env.body_pos(task["object_id"])
+            gz = p[2] + min(0.01, env.obj_half_h(task["object_id"]) * 0.2)
+            tgt = env.rack_place_point(task) if fam == "load_dishwasher" else env.counter_place_point(task)
+            R = ik.down(self._grip_yaw(env, 0.0))
+            s = self.seg_steps
+            lift = max(gz, tgt[2]) + 0.15
+            n_steps = max(1, int(np.ceil((lift - tgt[2]) / 0.1)))
+            zs = np.linspace(lift, tgt[2], n_steps + 1)[1:]
+            descent = [((tgt[0], tgt[1], z), R, c, s // 2, k < n_steps - 1) for k, z in enumerate(zs)]
+            # the approach to an object low in the rack is the same kind of chain: one long joint-space move from
+            # HOME dips the hand onto the dishwasher's top edge on the way down
+            n_app = max(1, int(np.ceil((lift - gz - 0.02) / 0.1)))
+            zs = np.linspace(lift, gz + 0.02, n_app + 1)[1:]
+            approach = [((p[0], p[1], z), R, o, s // 2, k < n_app - 1) for k, z in enumerate(zs)]
+            rise = [((p[0], p[1], z), R, c, s // 2, k < n_app - 1) for k, z in enumerate(zs[::-1])]  # same pace up
+            return [((p[0], p[1], lift), R, o, s)] + approach + [
+                    ((p[0], p[1], gz), R, o, s // 2), ((p[0], p[1], gz), R, c, self.hold_steps)] + rise + [
+                    ((p[0], p[1], lift), R, c, s // 2), ((tgt[0], tgt[1], lift), R, c, 2 * s)] + descent + [
+                    ((tgt[0], tgt[1], tgt[2]), R, o, self.hold_steps), ((tgt[0], tgt[1], tgt[2] + 0.15), R, o, s)]
         raise ValueError(f"unknown family {fam}")
+
+    @staticmethod
+    def _chain_error(env, wps) -> float:
+        q, worst = np.array(HOME), 0.0
+        for pos, R, *_ in wps:
+            q, err = ik.solve(env.model, env.data, pos, R, q, env.qadr, env.dofadr)
+            worst = max(worst, err)
+        return worst
 
     def reset(self, env, task: dict) -> None:
         if task["family"] in ("close_drawer", "close_door"):

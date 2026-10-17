@@ -12,7 +12,7 @@ import math
 import time
 from pathlib import Path
 
-from arrival.sim.collect import FPS, SimEnv, run_episode
+from arrival.sim.collect import FPS, SimEnv, finish_task, run_episode
 from arrival.sim.tasks import make_tasks
 
 
@@ -27,15 +27,6 @@ def wilson(k: int, n: int, z: float = 1.96) -> list[float]:
     return [round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4)]
 
 
-def _finish_task(t: dict) -> dict:
-    """Same joint names collect() adds."""
-    if t["family"] == "open_drawer":
-        t["handle"], t["joint"] = f'{t["fixture"]}_drawer0_handle', f'{t["fixture"]}_drawer0'
-    elif t["family"] == "open_door":
-        t["joint"] = f'{t["fixture"]}_door'
-    return t
-
-
 def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = "scripted", seed: int = 0,
              people: int = 2, holdout: bool = False, res: int = 128, out_dir: str | Path = "out",
              log=print) -> dict:
@@ -46,7 +37,7 @@ def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = 
     per: dict[str, dict] = {}
     t_all = time.perf_counter()
     for j, fam in enumerate(families):
-        tasks = [_finish_task(t) for t in make_tasks(twin, [fam], episodes, seed=seed + j, people=people,
+        tasks = [finish_task(t) for t in make_tasks(twin, [fam], episodes, seed=seed + j, people=people,
                                                      holdout=holdout, log=log)]
         if not tasks:
             continue

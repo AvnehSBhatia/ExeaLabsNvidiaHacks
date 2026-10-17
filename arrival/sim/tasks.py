@@ -1,4 +1,5 @@
-"""Sim task families: counter_to_sink, counter_to_counter (when reachable), open_drawer, open_door."""
+"""Sim task families: pick-and-place (counter_to_sink, counter_to_counter, put_in_drawer, load/unload_dishwasher),
+drawer and door tasks (open/close), the oven and dishwasher doors, the faucet lever and wiping."""
 
 from __future__ import annotations
 
@@ -8,10 +9,12 @@ from arrival.catalog.objects import PICKABLE
 from arrival.tasks.propose import LIGHTING, POSE_OFFSETS, WORDINGS, top_z
 
 SIM_FAMILIES = ("counter_to_sink", "counter_to_counter", "open_drawer", "open_door", "close_drawer", "close_door",
-                "put_in_drawer", "wipe_counter")
+                "put_in_drawer", "wipe_counter", "open_oven", "open_dishwasher", "turn_on_faucet",
+                "load_dishwasher", "unload_dishwasher")
 REACH = 0.78  # max horizontal eef reach from the arm base used when placing the base
 HOLDOUT_WORDING = 3  # docs/07-eval.md: template 4 and the (0, +0.08) offset are for evaluation only
 HOLDOUT_OFFSET = [0.0, 0.08]
+DISHWASHER_SIDE = 0.55  # the base parks this far beside the dishwasher centre, clear of its open door
 SIM_WORDINGS = {
     **WORDINGS,
     "open_drawer": ["Open the top drawer.", "Pull the top drawer of the {name} open.",
@@ -23,6 +26,13 @@ SIM_WORDINGS = {
                       "Move the {name} from the counter into the drawer."],
     "wipe_counter": ["Wipe the counter with the {name}.", "Clean the counter top with the {name}.",
                      "Scrub the counter using the {name}."],
+    "open_oven": ["Open the oven.", "Pull the oven door down.", "Open the oven door of the {name}."],
+    "open_dishwasher": ["Open the dishwasher.", "Pull the dishwasher door open.", "Open the {name} door."],
+    "turn_on_faucet": ["Turn on the faucet.", "Lift the faucet lever to start the water.", "Turn the tap on."],
+    "load_dishwasher": ["Put the {name} in the dishwasher.", "Load the {name} into the dishwasher rack.",
+                        "Move the {name} from the counter into the dishwasher."],
+    "unload_dishwasher": ["Take the {name} out of the dishwasher.", "Unload the {name} onto the counter.",
+                          "Move the {name} from the dishwasher rack to the counter."],
 }
 
 
@@ -85,6 +95,30 @@ def make_tasks(twin: dict, families: list[str], n: int, seed: int = 0, people: i
                                  "fixture": src["id"], "start": list(o["position"])})
         elif fam in ("open_drawer", "open_door", "close_drawer", "close_door"):
             pool = [{"fixture": c["id"], "name": c["id"].replace("_", " ")} for c in counters]
+        elif fam == "open_oven":
+            pool = [{"fixture": f["id"], "name": f["id"].replace("_", " ")} for f in twin["fixtures"] if f["type"] == "stove"]
+        elif fam == "open_dishwasher":
+            pool = [{"fixture": f["id"], "name": f["id"].replace("_", " ")} for f in twin["fixtures"]
+                    if f["type"] == "dishwasher"]
+        elif fam == "turn_on_faucet":
+            pool = [{"fixture": s["id"], "name": "faucet"} for s in sinks
+                    if any(abs(s["position"][0] - c["position"][0]) < c["size"][0] / 2 for c in counters)]
+        elif fam in ("load_dishwasher", "unload_dishwasher"):
+            # the base parks beside the dishwasher in front of the counter, so the object (or its spot on the
+            # counter for unloading) has to be within reach of that parking spot
+            for d in (f for f in twin["fixtures"] if f["type"] == "dishwasher"):
+                for o in twin["objects"]:
+                    if o["catalog_id"] not in PICKABLE:
+                        continue
+                    src = next((c for c in counters if abs(o["position"][0] - c["position"][0]) < c["size"][0] / 2), None)
+                    if src is None:
+                        continue
+                    side = 1 if o["position"][0] > d["position"][0] else -1
+                    park = d["position"][0] + side * DISHWASHER_SIDE
+                    if abs(o["position"][0] - park) > 0.45 or abs(o["position"][0] - d["position"][0]) < d["size"][0] / 2 + 0.1:
+                        continue
+                    pool.append({"object_id": o["id"], "object_label": o["label"], "source": src["id"],
+                                 "fixture": d["id"], "start": list(o["position"])})
         if not pool:
             log(f"[sim] family {fam}: no reachable variation in this room for a fixed-base arm; skipped")
             continue
