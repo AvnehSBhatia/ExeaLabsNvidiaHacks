@@ -96,7 +96,7 @@ Status as of Oct 14 (scripted expert, friction grasps, physics-checked):
 
 | Family | Success | Note |
 |---|---|---|
-| `counter_to_sink` | 100% | mug, and the bowl held by its rim |
+| `counter_to_sink` | 100% | mug, cup, apple and bottle by the body; bowl and plate by the rim; pan by its handle |
 | `open_drawer` | 100% | both counters |
 | `open_door` | 100% | both cabinet doors, 8/8 over two seeds; the door ends at about 70° (threshold 60°) |
 | `counter_to_counter` | skipped | pick point and target about 2 m apart, base is fixed per episode. Needs a mobile base |

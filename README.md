@@ -28,7 +28,7 @@ Built for the NVIDIA × Nebius hackathon by Exea Labs and a team of 30. **Want t
 | Simulation: kitchen, drawers, doors, oven, dishwasher, microwave, wall cabinets, faucet, people | ✅ Works. MuJoCo, built from the twin; every moving part is a named joint with a handle site |
 | People: interactions + safety metric | ✅ Walkers stop at the counter and cross behind the robot. Every episode records the minimum robot-human distance; episodes with contact are dropped. ⚠️ Nobody opens the fridge yet |
 | Closed-loop eval harness | ✅ `python -m arrival eval` scores N episodes per family (success, time, human contacts, Wilson 95%). ⚠️ Only the scripted expert has been scored; the VLA cell needs a GR00T server (POL-3) |
-| Robot: pick mug → sink | ✅ 100% success, friction grasp, physics-checked |
+| Robot: pick mug, cup, apple, bottle, bowl, plate, pan → sink | ✅ 100% success, friction grasp (bowl and plate by the rim, pan by the handle), physics-checked |
 | Robot: open drawer | ✅ 100% success |
 | Robot: open door | ✅ 100% on both cabinet doors (8/8, two seeds, with and without people). Opens to about 70°: the arm is mounted at 0.75 m, so the far end of the handle arc sits at its reach limit. A mobile base (MAN-3) is what lifts that |
 | Robot: counter → counter | ❌ Skipped. The pick point and the target counter are about 2 m apart and the base doesn't move |
@@ -174,7 +174,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 - **MAN-1: Make the arm look and move like a Panda.** Real link shapes and proportions, a Franka-style hand, a low mount, IK biased to the Panda "ready" posture so the elbow doesn't flip, smooth min-jerk motion, and no clipping. Code is in `arrival/sim/robot.py` and `ik.py`. **The arm currently looks buggy. This is a top priority.**
 - **MAN-2: Open doors.** Done (see `docs/BUILD-LOG.md`). Both cabinet doors open at 100%; the fridge door is not a task yet (MAN-5). Check with `python -m arrival sim --families open_door --episodes 4 --save-preview`.
 - **MAN-3: Mobile base.** Add an actuated base so `counter_to_counter` (about 2 m between pick point and target) is reachable, and add base joints to the state/action spec.
-- **MAN-4: Grasp everything.** Bowl done: a hollow bowl and a rim grasp (see `docs/BUILD-LOG.md`). Cups, apples and bottles are picked by the body. Left: plates and pans are wider than the gripper opening.
+- **MAN-4: Grasp everything.** Done: the bowl and the plate are hollow and pinched by the rim nearest the robot, the pan is pinched across its handle at the root, cups, apples and bottles are held by the body (see `docs/BUILD-LOG.md`). What limits it is the clamp: the position-controlled fingers hold about 5 to 8 N, so the pan hangs from its handle and the plate rides tilted while carried; both still land in the sink 4/4. The spatula is the one catalog object not picked.
 - **MAN-5: New tasks.** Done: close drawer, close door, put the mug away in a drawer, wipe the counter with the sponge (`python -m arrival sim --families close_drawer,close_door,put_in_drawer,wipe_counter`). Left: dishwasher load/unload and the faucet. The joints exist (SIM-3); no task drives them yet.
 - **MAN-6: Real Franka model** *(optional).* Swap in the MuJoCo Menagerie Panda (Apache-2.0) behind a flag, keeping tests offline.
 

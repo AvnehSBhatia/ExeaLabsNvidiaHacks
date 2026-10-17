@@ -369,12 +369,15 @@ def fridge_xml(f: dict) -> str:
 
 
 BOWL_WALL = 0.006  # wall thickness; the closed fingers (12 mm apart at the pads) pinch the rim
+PLATE_RIM, PLATE_FLOOR = 0.018, 0.005  # a thick rolled rim the closed pads (12 mm apart) can squeeze; thin floor
 
 
-def _ring_geoms(oid: str, radius: float, height: float, wall: float, mass: float, rgba: str, col: str) -> list[str]:
-    """Open-top container: a bottom disc and an octagon of thin wall panels."""
-    g = [f'<geom name="{oid}" type="cylinder" size="{radius - wall:.4f} {wall / 2:.4f}" '
-         f'pos="0 0 {-height / 2 + wall / 2:.4f}" mass="{0.4 * mass:.4f}" rgba="{rgba}" {col}/>']
+def _ring_geoms(oid: str, radius: float, height: float, wall: float, mass: float, rgba: str, col: str,
+                floor: float | None = None) -> list[str]:
+    """Open-top container: a bottom disc (`floor` thick, default the wall) and an octagon of wall panels."""
+    floor = wall if floor is None else floor
+    g = [f'<geom name="{oid}" type="cylinder" size="{radius - wall:.4f} {floor / 2:.4f}" '
+         f'pos="0 0 {-height / 2 + floor / 2:.4f}" mass="{0.4 * mass:.4f}" rgba="{rgba}" {col}/>']
     r = radius - wall / 2
     half = r * math.tan(math.pi / 8) + 0.002
     for k in range(8):
@@ -387,8 +390,8 @@ def _ring_geoms(oid: str, radius: float, height: float, wall: float, mass: float
 
 def object_xml(o: dict, pos) -> str:
     """Free body for a catalog object. Objects collide with the robot, the fixtures and the moving parts
-    (conaffinity 3), so they rest on drawer trays and open oven doors. A bowl is hollow so the gripper
-    can pinch its rim (MAN-4)."""
+    (conaffinity 3), so they rest on drawer trays and open oven doors. A bowl and a plate are hollow so the
+    gripper can pinch their rim (MAN-4)."""
     oid, cid = o["id"], o["catalog_id"]
     sx, sy, sz = o["size"]
     spec = object_spec(cid, o["size"])
@@ -397,6 +400,8 @@ def object_xml(o: dict, pos) -> str:
     r = min(sx, sy) / 2
     if cid == "bowl":
         g = _ring_geoms(oid, r, sz, BOWL_WALL, m, rgba, col)
+    elif cid == "plate":  # a shallow dish: a thin floor and a thick 18 mm rim the pads pinch (MAN-4)
+        g = _ring_geoms(oid, r, sz, PLATE_RIM, m, rgba, col, floor=PLATE_FLOOR)
     elif shape == "cylinder":
         if cid in ("mug", "cup"):
             r = min(r, 0.035)  # the body has to fit the 10 cm gripper opening with room for the pads

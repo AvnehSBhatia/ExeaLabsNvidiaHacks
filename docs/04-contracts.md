@@ -201,7 +201,7 @@ Object labels:
 | spatula | spatula |
 | anything else | box |
 
-Object physics come from `arrival/catalog/objects.py`: shape, nominal size, mass at that size (scaled by volume for any other size), friction and colour. `PICKABLE` lists the ids the scripted expert holds by the body (mug, cup, sponge, apple, bottle); the bowl, plate, pan and spatula are scene objects only. `place_default_objects` draws each default object's size within 8% of the nominal size from its seed.
+Object physics come from `arrival/catalog/objects.py`: shape, nominal size, mass at that size (scaled by volume for any other size), friction and colour. `PICKABLE` lists the ids the scripted expert holds by the body (mug, cup, sponge, apple, bottle), `RIM_HELD` (bowl, plate) are hollow and pinched by the rim nearest the robot, `HANDLE_HELD` (pan) is pinched across the handle at its root; `GRASPABLE` is their union and what the pick families draw from. The spatula is a scene object only. The plate is a deep plate, 3 cm tall with an 18 mm rim, because the closed pads leave a 12 mm gap and a thinner rim slips out. `place_default_objects` draws each default object's size within 8% of the nominal size from its seed.
 
 Moving parts in the sim (`arrival.sim.scene.part_names(twin)`): each is a joint, with a site `<joint>_handle` on its handle bar, in the parent fixture's frame.
 

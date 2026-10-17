@@ -9,7 +9,7 @@ import pytest
 
 mujoco = pytest.importorskip("mujoco")
 
-from arrival.catalog.objects import OBJECT_SPECS, PICKABLE, object_spec, sample_size  # noqa: E402
+from arrival.catalog.objects import GRASPABLE, HANDLE_HELD, OBJECT_SPECS, PICKABLE, RIM_HELD, object_spec, sample_size  # noqa: E402
 from arrival.scan.bundle import load_room  # noqa: E402
 from arrival.sim.scene import DOOR_FLAT, UPPER_Z0, build_mjcf, part_names  # noqa: E402
 from arrival.twin.compile import compile_twin  # noqa: E402
@@ -156,9 +156,10 @@ def test_size_variation_is_seeded_and_bounded():
         assert object_spec(cid, nominal)["mass"] == pytest.approx(mass, abs=1e-3)
     assert object_spec("mug", [0.08, 0.08, 0.05])["mass"] == pytest.approx(0.15, abs=1e-3)  # mass follows volume
     assert set(PICKABLE) <= set(OBJECT_SPECS) and "bowl" not in PICKABLE and "pan" not in PICKABLE
+    assert set(GRASPABLE) == set(PICKABLE) | set(RIM_HELD) | set(HANDLE_HELD) and "spatula" not in GRASPABLE
 
 
-@pytest.mark.parametrize("cid", ["cup", "apple", "bottle"])
+@pytest.mark.parametrize("cid", ["cup", "apple", "bottle", "plate", "pan"])
 def test_new_objects_are_picked_into_the_sink(twin, cid):
     from arrival.sim.collect import SimEnv, run_episode
     from arrival.sim.policy import ScriptedExpert
@@ -173,3 +174,49 @@ def test_new_objects_are_picked_into_the_sink(twin, cid):
     assert task["object_id"] == f"{cid}_1"
     ep = run_episode(SimEnv(t, task, res=32), ScriptedExpert(), task)
     assert ep["success"], ep["detail"]
+
+
+def _wide_object_twin(twin, cid):
+    t = copy.deepcopy(twin)
+    o = next(o for o in t["objects"] if o["id"] == "mug_1")
+    o.update({"id": f"{cid}_1", "label": cid, "catalog_id": cid, "size": list(OBJECT_SPECS[cid][1])})
+    o["position"][2] = 0.92 + o["size"][2] / 2
+    t["objects"] = [o]
+    return t
+
+
+def test_plate_is_a_deep_dish_the_pads_can_pinch(twin):
+    from arrival.sim.scene import PLATE_FLOOR, PLATE_RIM
+
+    m = _model(_wide_object_twin(twin, "plate"))
+    walls = [m.geom(i) for i in range(m.ngeom) if m.geom(i).name.startswith("plate_1_wall")]
+    assert len(walls) == 8 and all(abs(2 * w.size[1] - PLATE_RIM) < 1e-6 for w in walls)
+    floor = m.geom("plate_1")
+    assert abs(2 * floor.size[1] - PLATE_FLOOR) < 1e-6 and PLATE_RIM > 0.012  # thicker than the closed pads' 12 mm gap
+
+
+def test_pan_is_held_by_its_handle_only(twin):
+    """While the gripper is closed, the fingers touch the pan's handle and nothing else on it: the pan is carried by
+    the handle (hanging from it, the clamp cannot hold 0.9 kg level), not knocked or scooped by the ring."""
+    from arrival.sim.collect import SimEnv
+    from arrival.sim.policy import ScriptedExpert
+    from arrival.sim.tasks import make_tasks
+
+    t = _wide_object_twin(twin, "pan")
+    task = make_tasks(t, ["counter_to_sink"], 1, seed=2, people=0, log=lambda *_: None)[0]
+    env = SimEnv(t, task, res=32)
+    pol = ScriptedExpert()
+    pol.reset(env, task)
+    m, d = env.model, env.data
+    pan = {i: m.geom(i).name for i in range(m.ngeom) if m.geom(i).name.startswith("pan_1")}
+    fingers = {i for i in range(m.ngeom) if m.body(m.geom_bodyid[i]).name in ("finger_l", "finger_r")}
+    touched = set()
+    for _ in range(len(pol.plan) + 10):
+        a = pol.act(None)
+        env.step(a)
+        if a[7] < 0.005:
+            for c in d.contact[:d.ncon]:
+                if c.geom1 in pan and c.geom2 in fingers or c.geom2 in pan and c.geom1 in fingers:
+                    touched.add(pan[c.geom1 if c.geom1 in pan else c.geom2])
+    assert touched == {"pan_1_handle"}, touched
+    assert env.success(task)[0]

@@ -49,18 +49,20 @@ class ScriptedExpert(Policy):
             p = env.body_pos(task["object_id"])
             gz = p[2] + min(0.01, env.obj_half_h(task["object_id"]) * 0.2)
             tgt = env.place_point(task)
-            rim = env.rim_grasp(task["object_id"])
+            g = env.grasp(task["object_id"])
             yaw = 0.0
-            if rim is not None:  # bowl: pinch the rim nearest the robot, pads straddling the wall 2 cm below the lip
-                off, yaw = rim
-                p = p + np.array([off[0], off[1], 0.0])
-                tgt = tgt + np.array([off[0], off[1], 0.0])
-                gz = env.body_pos(task["object_id"])[2] + env.obj_half_h(task["object_id"]) - 0.02
+            if g is not None:  # rim or handle grasp: same xy offset at the set-down, eef kept at its height over the body
+                p = p + np.array([g["off"][0], g["off"][1], 0.0])
+                tgt = tgt + np.array([g["off"][0], g["off"][1], g["z"] - env.body_pos(task["object_id"])[2]])
+                gz, yaw = g["z"], g["yaw"]
             R = ik.down(self._grip_yaw(env, yaw))
             s = self.seg_steps
+            lift = [((p[0], p[1], gz + 0.22), R, c, s)]
+            if g is not None:  # a wide object tips in the pads as it leaves the counter: lift it in short steps
+                lift = [((p[0], p[1], gz + dz), R, c, s, dz < 0.22) for dz in (0.03, 0.08, 0.15, 0.22)]
             return [((p[0], p[1], gz + 0.18), R, o, s), ((p[0], p[1], gz + 0.02), R, o, s),
-                    ((p[0], p[1], gz), R, o, s // 2), ((p[0], p[1], gz), R, c, self.hold_steps),
-                    ((p[0], p[1], gz + 0.22), R, c, s), ((tgt[0], tgt[1], gz + 0.22), R, c, 2 * s),
+                    ((p[0], p[1], gz), R, o, s // 2), ((p[0], p[1], gz), R, c, self.hold_steps)] + lift + [
+                    ((tgt[0], tgt[1], gz + 0.22), R, c, 2 * s),
                     ((tgt[0], tgt[1], tgt[2]), R, c, s), ((tgt[0], tgt[1], tgt[2]), R, o, self.hold_steps),
                     ((tgt[0], tgt[1], tgt[2] + 0.2), R, o, s)]
         if fam == "open_drawer":

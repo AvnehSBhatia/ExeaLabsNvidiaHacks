@@ -13,12 +13,15 @@ import numpy as np
 from arrival.sim import robot
 from arrival.sim.people import Walkers
 from arrival.sim.safety import SafetyMonitor
-from arrival.sim.scene import build_mjcf, door_w, drawer_x
+from arrival.catalog.objects import HANDLE_HELD, RIM_HELD
+from arrival.sim.scene import BOWL_WALL, PLATE_FLOOR, PLATE_RIM, build_mjcf, door_w, drawer_x
 
 FPS = 20
 SUBSTEPS = 25  # 0.002 s physics -> 20 Hz control
 SETTLE_STEPS = 12
 DRAWER_OPEN = 0.30  # start state (m) for close_drawer; open_drawer counts > 0.15 as open
+HANDLE_ROOT = 0.017  # grasp point out from a pan's ring: pad half-width 0.01 plus 7 mm
+PAD_BELOW_EEF = 0.023  # the finger pads reach this far below the eef site (robot.py hand geometry)
 DRAWER_OPEN_PUT = 0.14  # start state for put_in_drawer: wide enough for a mug on the exposed tray, and the base
 # can then park straight in front without the pulled-out front reaching its column
 DOOR_OPEN = np.radians(70)  # start state for close_door; open_door counts > 60 deg as open
@@ -135,19 +138,24 @@ class SimEnv:
     def obj_half_h(self, oid: str) -> float:
         return self.objs[oid]["size"][2] / 2
 
-    def rim_grasp(self, oid: str) -> tuple[np.ndarray, float] | None:
-        """For a bowl: (xy offset from the bowl centre to the rim point nearest the robot, grasp yaw for ik.down so
-        the fingers close across the wall). None for objects held by their body."""
+    def grasp(self, oid: str) -> dict | None:
+        """How the expert holds an object it cannot grip by the body: xy offset from the body centre to the grasp
+        point, the yaw for ik.down (fingers close across the wall or the handle) and the eef height. A bowl and a
+        plate are pinched by the rim nearest the robot, the bowl 2 cm under its lip, the plate with the pads just
+        above its bottom disc; a pan by its handle, 1.7 cm out from the ring. None for objects held by the body."""
         o = self.objs[oid]
-        if o["catalog_id"] != "bowl":
-            return None
-        base = self.data.body("link1").xpos[:2]
-        d = base - self.body_pos(oid)[:2]
-        d = d / (np.linalg.norm(d) + 1e-9)
-        radius = min(o["size"][0], o["size"][1]) / 2
-        from arrival.sim.scene import BOWL_WALL
-
-        return d * (radius - BOWL_WALL / 2), float(np.arctan2(d[0], -d[1]))
+        cid, p = o["catalog_id"], self.body_pos(oid)
+        radius, sz = min(o["size"][0], o["size"][1]) / 2, o["size"][2]
+        if cid in RIM_HELD:
+            d = self.data.body("link1").xpos[:2] - p[:2]
+            d = d / (np.linalg.norm(d) + 1e-9)
+            wall = BOWL_WALL if cid == "bowl" else PLATE_RIM
+            z = p[2] + sz / 2 - 0.02 if cid == "bowl" else p[2] - sz / 2 + PLATE_FLOOR + PAD_BELOW_EEF + 0.003
+            return {"off": d * (radius - wall / 2), "yaw": float(np.arctan2(d[0], -d[1])), "z": z}
+        if cid in HANDLE_HELD:  # the handle runs along +x from the ring (object_xml ignores the twin yaw); the pads
+            # sit at its root, the thickest part; the pan tips and hangs from the handle during the carry
+            return {"off": np.array([radius + HANDLE_ROOT, 0.0]), "yaw": 0.0, "z": p[2] + sz / 2 - 0.008}
+        return None
 
     def place_point(self, task: dict) -> np.ndarray:
         tgt = self.fx[task["target"]]

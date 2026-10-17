@@ -9,7 +9,7 @@ OBJECT_SPECS = {
     "mug": ("cylinder", [0.08, 0.08, 0.10], 0.30, 1.0, "0.85 0.3 0.2 1"),
     "cup": ("cylinder", [0.07, 0.07, 0.09], 0.20, 1.0, "0.3 0.55 0.85 1"),
     "bowl": ("cylinder", [0.14, 0.14, 0.06], 0.25, 1.0, "0.9 0.9 0.8 1"),
-    "plate": ("cylinder", [0.22, 0.22, 0.012], 0.40, 0.8, "0.92 0.92 0.9 1"),
+    "plate": ("cylinder", [0.22, 0.22, 0.03], 0.40, 0.8, "0.92 0.92 0.9 1"),  # a deep plate: the rim is what the gripper holds
     "sponge": ("box", [0.10, 0.06, 0.03], 0.03, 1.2, "0.95 0.85 0.2 1"),
     "apple": ("sphere", [0.076, 0.076, 0.076], 0.18, 0.9, "0.75 0.15 0.12 1"),
     "bottle": ("bottle", [0.066, 0.066, 0.22], 0.55, 0.6, "0.55 0.75 0.9 0.7"),
@@ -19,6 +19,9 @@ OBJECT_SPECS = {
 OBJECT_MAP = {label: label for label in OBJECT_SPECS}
 PICKABLE = ("mug", "cup", "sponge", "apple", "bottle")  # fit the 10 cm gripper opening and are held by the body;
 # the 1 cm spatula sits under the grasp height the expert uses, so it is scenery until the grasp rule changes
+RIM_HELD = ("bowl", "plate")  # hollow, pinched by the rim nearest the robot (MAN-4)
+HANDLE_HELD = ("pan",)  # pinched across the handle, close to the body
+GRASPABLE = PICKABLE + RIM_HELD + HANDLE_HELD
 SIZE_VARIATION = 0.08  # +-8% on the footprint and on the height, drawn separately
 
 
