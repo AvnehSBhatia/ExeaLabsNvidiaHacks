@@ -309,7 +309,7 @@ Variation generation, RNG seed 0, for listing tasks (the demo generator may subs
 
 - Objects: every object whose horizontal center lies on `counter_a` (mug_1, bowl_1). Sponge is on counter_b and is not a source object.
 - Start poses: the object's scanned xy, plus `[+0.08, 0]`, `[-0.08, 0]`, `[0, +0.08]`. Keep z. Reject a pose whose xy falls outside the source counter's top rectangle (center ± half size, inset by 0.05 m).
-- Lighting: `dim`, `neutral`, `bright`.
+- Lighting: `dim`, `neutral`, `bright`. In the sim the label sets the light level (0.35, 0.7, 1.0 of nominal) and the task `seed` jitters it within 15% plus colour temperature, key-light position and which side the window light comes from, so the three labels stay ordered on frame brightness for every seed.
 - Wordings, in this order, with `{name}` replaced by the object label:
 
   1. `Pick up the {name} from the counter and place it in the sink.`

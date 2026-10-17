@@ -41,7 +41,8 @@ class SimEnv:
             src = self.fx[task["source"]]
             obj_pos[o["id"]] = [task["start"][0], task["start"][1], self._top(src) + o["size"][2] / 2 + 0.003]
         base, yaw = self._base_pose(task, obj_pos)
-        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0))
+        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0),
+                         seed=task.get("seed"))
         self.model = mujoco.MjModel.from_xml_string(xml)
         self.data = mujoco.MjData(self.model)
         self.qadr = [int(self.model.joint(j).qposadr[0]) for j in robot.ARM_JOINTS]

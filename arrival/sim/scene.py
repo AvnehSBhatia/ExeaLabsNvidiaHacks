@@ -5,12 +5,16 @@ objects, people, Panda-like arm, cameras. Every moving part is a named joint wit
 from __future__ import annotations
 
 import math
+import random
 
 from arrival.catalog.objects import object_spec
 from arrival.sim import people, robot
 from arrival.twin.compile import to_local
 
 LIGHT = {"dim": 0.35, "neutral": 0.7, "bright": 1.0}
+LIGHT_JITTER = 0.15  # per-task intensity jitter inside a label; the three bands never overlap
+WARM, COOL = (1.0, 0.93, 0.82), (0.86, 0.93, 1.0)  # key light colour runs between these
+WALL = "0.93 0.91 0.86 1"
 TOP_T = 0.04
 CARCASS_H = 0.70  # cabinet body below the counter top (sink basin sits between this and the top)
 DRAWER = 'contype="2" conaffinity="2"'  # moving parts collide with the robot, not with their carcass
@@ -22,6 +26,8 @@ REVEAL, INSET, FRONT_T, KICK = 0.003, 0.015, 0.018, 0.10
 UPPER_Z0, UPPER_H, UPPER_D, UPPER_DOOR_MAX = 1.56, 0.60, 0.32, 0.60  # wall cabinets over a counter run; the wrist
 # reaches 1.50 m over the back of the counter when it drops into the sink, so the cabinets start above that
 DOOR_FLAT = 1.5  # bottom-hinged doors (oven, dishwasher) stop just short of horizontal
+TOP = "0.82 0.82 0.8 1"
+MATERIALS = {FRONT: "wood", TOP: "stone", SPLASH: "panel", WALL: "paint"}  # attached by colour in build_mjcf
 
 
 def _box(name, pos, size, rgba, extra=""):
@@ -173,7 +179,7 @@ def counter_xml(c: dict, sinks: list[dict], fixtures: list[dict] = ()) -> str:
     g = [_box(f"{cid}_carcass", (xm, 0, CARCASS_H / 2), (xw, sy - 0.04, CARCASS_H), "0.55 0.42 0.3 1")]
     holes = [(s["position"][0] - cx, s["size"][0], s["size"][1], s) for s in _sinks_in(c, sinks)]
     zt = h - TOP_T / 2
-    top = "0.82 0.82 0.8 1"
+    top = TOP
     if not holes:
         g.append(_box(f"{cid}_top", (xm, 0, zt), (xw, sy, TOP_T), top))
     for hx, hw, hd, s in holes[:1]:
@@ -454,9 +460,58 @@ def part_names(twin: dict) -> list[dict]:
 
 
 
+def assets_xml() -> str:
+    """Builtin textures only (no files), white so the geom rgba sets the colour: tile floor with grout,
+    plank-grain wood for cabinet fronts, speckled stone for counter tops, glossy boards for the backsplash
+    (a 2d texture is projected along a box's local z, so a vertical face only varies along x)."""
+    return (
+        '<asset>'
+        '<texture name="floor_tile" type="2d" builtin="flat" mark="edge" rgb1="0.68 0.61 0.53" '
+        'markrgb="0.42 0.38 0.34" width="128" height="128"/>'
+        '<material name="floor" texture="floor_tile" texuniform="true" texrepeat="3 3" '
+        'specular="0.1" shininess="0.2"/>'
+        '<texture name="wood_grain" type="2d" builtin="checker" rgb1="1 1 1" rgb2="0.9 0.87 0.84" '
+        'mark="random" random="0.03" markrgb="0.72 0.66 0.6" width="64" height="64"/>'
+        '<material name="wood" texture="wood_grain" texuniform="true" texrepeat="1.5 40" '
+        'specular="0.2" shininess="0.2"/>'
+        '<texture name="stone_speckle" type="2d" builtin="flat" rgb1="1 1 1" mark="random" random="0.05" '
+        'markrgb="0.55 0.55 0.53" width="128" height="128"/>'
+        '<material name="stone" texture="stone_speckle" texuniform="true" texrepeat="6 6" '
+        'reflectance="0.1" specular="0.7" shininess="0.7"/>'
+        '<texture name="panel_lines" type="2d" builtin="flat" mark="edge" rgb1="1 1 1" '
+        'markrgb="0.8 0.8 0.8" width="64" height="64"/>'
+        '<material name="panel" texture="panel_lines" texuniform="true" texrepeat="8 8" '
+        'specular="0.5" shininess="0.5"/>'
+        '<material name="paint" specular="0.05" shininess="0.05"/>'
+        '</asset>')
+
+
+def lights_xml(lighting: str, cx: float, cy: float, y_front: float, seed: int | None = None) -> tuple[str, float]:
+    """Key spot (shadows), cool fill from the front, and a low window light from one side. The label sets
+    the level; the seed jitters level, colour temperature, key position and window side within the label."""
+    rng = random.Random(seed)
+    u = (lambda a: rng.uniform(-a, a)) if seed is not None else (lambda a: 0.0)
+    li = LIGHT[lighting] * (1 + u(LIGHT_JITTER))
+    t = 0.5 + u(0.5)
+    kc = [w + (c - w) * t for w, c in zip(WARM, COOL)]
+    kx, ky = cx + u(0.4), cy + u(0.4)
+    side = rng.choice((-1, 1)) if seed is not None else 1
+    key = " ".join(f"{li * c:.3f}" for c in kc)
+    spec = " ".join(f"{0.4 * li * c:.3f}" for c in kc)
+    fill = " ".join(f"{0.3 * li * c:.3f}" for c in COOL)
+    window = " ".join(f"{0.25 * li * c:.3f}" for c in WARM)
+    return (f'<light name="key" pos="{kx:.3f} {ky:.3f} 2.35" dir="0 0 -1" cutoff="80" exponent="1" '
+            f'diffuse="{key}" specular="{spec}" castshadow="true"/>'
+            f'<light name="fill" directional="true" pos="{cx:.3f} {y_front:.3f} 2.0" dir="0 -0.6 -1" '
+            f'diffuse="{fill}" specular="0 0 0" castshadow="false"/>'
+            f'<light name="window" directional="true" pos="{cx + side * 2:.3f} {cy:.3f} 1.6" '
+            f'dir="{-side * 0.8:.1f} 0 -0.45" diffuse="{window}" specular="0 0 0" castshadow="false"/>'), li
+
+
 def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: dict | None = None,
-               lighting: str = "neutral", n_people: int = 0) -> str:
-    """Returns an MJCF string. object_pos overrides {object_id: [x, y, z]} start positions."""
+               lighting: str = "neutral", n_people: int = 0, seed: int | None = None) -> str:
+    """Returns an MJCF string. object_pos overrides {object_id: [x, y, z]} start positions.
+    seed jitters the lights within the lighting label (None gives the nominal lights)."""
     object_pos = object_pos or {}
     fx = twin["fixtures"]
     sinks = [f for f in fx if f["type"] == "sink"]
@@ -467,7 +522,7 @@ def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: di
         yaw = math.atan2(y1 - y0, x1 - x0)
         world.append(f'<geom name="{w["id"]}" type="box" pos="{(x0 + x1) / 2} {(y0 + y1) / 2} {w["height"] / 2}" '
                      f'size="{L / 2} {max(w["thickness"], 0.05) / 2} {w["height"] / 2}" euler="0 0 {yaw}" '
-                     f'rgba="0.93 0.91 0.86 1"/>')
+                     f'rgba="{WALL}"/>')
     for f in fx:
         t = f["type"]
         if t == "counter":
@@ -487,20 +542,21 @@ def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: di
     xs = [p for w in twin["walls"] for p in (w["start"][0], w["end"][0])]
     ys = [p for w in twin["walls"] for p in (w["start"][1], w["end"][1])]
     cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
-    li = LIGHT[lighting]
+    lights, li = lights_xml(lighting, cx, cy, max(ys) - 0.3, seed)
+    body = "".join(world)
+    for rgba, mat in MATERIALS.items():
+        body = body.replace(f'rgba="{rgba}"', f'rgba="{rgba}" material="{mat}"')
     return f"""<mujoco model="{twin['room_id']}_sim">
 <compiler angle="radian" autolimits="true"/>
 <option timestep="0.002" cone="elliptic" impratio="10" integrator="implicitfast"/>
-<visual><global offwidth="640" offheight="480"/><headlight ambient="{0.25 * li} {0.25 * li} {0.25 * li}" diffuse="{0.3 * li} {0.3 * li} {0.3 * li}"/><quality shadowsize="2048"/></visual>
-<asset><texture name="floor" type="2d" builtin="checker" rgb1="0.62 0.55 0.47" rgb2="0.56 0.5 0.43" width="256" height="256"/>
-<material name="floor" texture="floor" texrepeat="8 8"/></asset>
+<visual><global offwidth="640" offheight="480"/><headlight ambient="{0.15 * li:.3f} {0.15 * li:.3f} {0.15 * li:.3f}" diffuse="{0.1 * li:.3f} {0.1 * li:.3f} {0.1 * li:.3f}" specular="0 0 0"/><quality shadowsize="2048"/></visual>
+{assets_xml()}
 <default><geom friction="1.0 0.01 0.001"/></default>
 <worldbody>
-<light name="ceiling" pos="{cx} {cy} 2.35" dir="0 0 -1" diffuse="{li} {li} {0.95 * li}" castshadow="true"/>
-<light name="fill" pos="{cx} {max(ys) - 0.3} 2.0" dir="0 -1 -1" diffuse="{0.4 * li} {0.4 * li} {0.4 * li}"/>
+{lights}
 <geom name="floor" type="plane" pos="{cx} {cy} 0" size="{max(xs)} {max(ys)} 0.1" material="floor"/>
 <camera name="overview" pos="{cx} {max(ys) - 0.1} 2.2" xyaxes="-1 0 0 0 -0.6 0.8" fovy="80"/>
-{''.join(world)}
+{body}
 </worldbody>
 <actuator>{robot.actuators_xml()}</actuator>
 </mujoco>"""
