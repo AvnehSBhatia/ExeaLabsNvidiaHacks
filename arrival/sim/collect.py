@@ -10,7 +10,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from arrival.sim import robot
+from arrival.sim import menagerie, robot
 from arrival.sim.people import Walkers
 from arrival.sim.safety import SafetyMonitor
 from arrival.sim.scene import build_mjcf, door_w, drawer_x
@@ -31,7 +31,8 @@ def _front(f: dict) -> np.ndarray:
 
 
 class SimEnv:
-    def __init__(self, twin: dict, task: dict, res: int = 128, cameras=("ego_view", "wrist"), overview: bool = False):
+    def __init__(self, twin: dict, task: dict, res: int = 128, cameras=("ego_view", "wrist"), overview: bool = False,
+                 arm: str = "procedural"):
         self.twin, self.task = twin, task
         self.fx = {f["id"]: f for f in twin["fixtures"]}
         self.objs = {o["id"]: o for o in twin["objects"]}
@@ -41,19 +42,20 @@ class SimEnv:
             src = self.fx[task["source"]]
             obj_pos[o["id"]] = [task["start"][0], task["start"][1], self._top(src) + o["size"][2] / 2 + 0.003]
         base, yaw = self._base_pose(task, obj_pos)
-        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0))
+        xml = build_mjcf(twin, base, yaw, obj_pos, task.get("lighting", "neutral"), task.get("people", 0), arm=arm)
         self.model = mujoco.MjModel.from_xml_string(xml)
         self.data = mujoco.MjData(self.model)
         self.qadr = [int(self.model.joint(j).qposadr[0]) for j in robot.ARM_JOINTS]
         self.dofadr = [int(self.model.joint(j).dofadr[0]) for j in robot.ARM_JOINTS]
         self.fadr = [int(self.model.joint(f"finger_{s}").qposadr[0]) for s in ("l", "r")]
+        self.finger_open = menagerie.FINGER_OPEN if arm == "menagerie" else robot.FINGER_OPEN  # per finger, m
         self.data.qpos[self.qadr] = robot.HOME
-        self.data.qpos[self.fadr] = robot.FINGER_OPEN
+        self.data.qpos[self.fadr] = self.finger_open
         if task["family"] in ("close_drawer", "close_door", "put_in_drawer"):  # the part starts open
             jn = f'{task["fixture"]}_door' if task["family"] == "close_door" else f'{task["fixture"]}_drawer0'
             start = {"close_drawer": DRAWER_OPEN, "close_door": DOOR_OPEN, "put_in_drawer": DRAWER_OPEN_PUT}
             self.data.qpos[int(self.model.joint(jn).qposadr[0])] = start[task["family"]]
-        self.data.ctrl[:] = list(robot.HOME) + [robot.FINGER_OPEN] * 2
+        self.data.ctrl[:] = list(robot.HOME) + [self.finger_open] * 2
         self.wiped = 0.0  # xy distance the sponge travelled while pressed to the counter (wipe_counter)
         free = self._free_floor()
         front = max(f["position"][1] + f["size"][1] / 2 for f in twin["fixtures"])
@@ -65,7 +67,7 @@ class SimEnv:
         self.renderer = mujoco.Renderer(self.model, res, res)
         self.big = mujoco.Renderer(self.model, 360, 480) if overview else None
         for _ in range(SETTLE_STEPS):
-            self.step(np.array(list(robot.HOME) + [robot.FINGER_OPEN]))
+            self.step(np.array(list(robot.HOME) + [self.finger_open]))
 
     # ---- geometry helpers ----
     @staticmethod
@@ -291,7 +293,7 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
             policy_name: str = "scripted", res: int = 128, seed: int = 0, save_preview: bool = False,
             planner_name: str = "rule", cache_path: str | Path | None = None,
             split: str = "train", use_generated_instructions: bool = False,
-            log=print) -> dict:
+            arm: str = "procedural", log=print) -> dict:
     """Collect `episodes` attempts; failed attempts are dropped and counted."""
     from arrival.sim.export import SimDatasetWriter
     from arrival.sim.policy import ScriptedExpert, VLAClient, VLMPlanner
@@ -308,7 +310,8 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
             t["joint"] = f'{t["fixture"]}_door'
     policy = ScriptedExpert() if policy_name == "scripted" else VLAClient()
     planner = VLMPlanner(log=log, cache_path=cache_path) if planner_name == "vlm" else None
-    writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"))
+    writer = SimDatasetWriter(out_dir / "datasets" / f"{room}_sim", room, FPS, res, ("ego_view", "wrist"), arm=arm,
+                              finger_open=menagerie.FINGER_OPEN if arm == "menagerie" else robot.FINGER_OPEN)
     t0 = time.perf_counter()
     per = {}
     preview = [] if save_preview else None
@@ -326,7 +329,7 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
             if plan.get("target") and plan["target"] in fx_ids:
                 task["target"] = plan["target"]
             log(f"[sim] task {task['task_id']}: planned by {planner.source} -> {plan}")
-        env = SimEnv(twin, task, res=res, overview=save_preview and i == 0)
+        env = SimEnv(twin, task, res=res, overview=save_preview and i == 0, arm=arm)
         ep = run_episode(env, policy, task, preview=preview if i == 0 else None)
         fam = per.setdefault(task["family"], {"attempts": 0, "successes": 0, "human_contacts": 0})
         fam["attempts"] += 1
@@ -349,7 +352,8 @@ def collect(twin: dict, families: list[str], episodes: int, out_dir: str | Path 
               "demos_per_hour": round(succ / seconds * 3600, 1) if seconds else 0.0,
               "human_contacts": sum(f["human_contacts"] for f in per.values()),
               "families": {k: {**v, "success_rate": round(v["successes"] / v["attempts"], 3)} for k, v in per.items()},
-              "people": people, "resolution": res, "physics_checked_success": True, "grasp": "friction"}
+              "people": people, "resolution": res, "physics_checked_success": True, "grasp": "friction",
+              "arm": arm}
     rp = out_dir / "reports" / f"{room}_sim.json"
     rp.parent.mkdir(parents=True, exist_ok=True)
     rp.write_text(json.dumps(report, indent=2))

@@ -44,7 +44,7 @@ class ScriptedExpert(Policy):
 
     def _waypoints(self, env, task: dict) -> list[tuple]:
         """(pos, R, gripper, steps[, via]) list."""
-        fam, o, c = task["family"], FINGER_OPEN, 0.0
+        fam, o, c = task["family"], getattr(env, "finger_open", FINGER_OPEN), 0.0
         if fam in ("counter_to_sink", "counter_to_counter"):
             p = env.body_pos(task["object_id"])
             gz = p[2] + min(0.01, env.obj_half_h(task["object_id"]) * 0.2)
@@ -188,7 +188,7 @@ class ScriptedExpert(Policy):
             self.open_at = float(env.data.joint(task["joint"]).qpos[0])  # how far the part starts open
         q = np.array(HOME)
         self.plan: list[np.ndarray] = []
-        prev = np.concatenate([q, [FINGER_OPEN]])
+        prev = np.concatenate([q, [getattr(env, "finger_open", FINGER_OPEN)]])
         self.ik_error = 0.0
         chain: list[tuple[np.ndarray, int]] = []
         for pos, R, g, steps, *via in self._waypoints(env, task):

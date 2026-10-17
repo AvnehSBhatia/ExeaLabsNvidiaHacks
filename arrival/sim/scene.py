@@ -454,10 +454,23 @@ def part_names(twin: dict) -> list[dict]:
 
 
 
+def arm_parts(arm: str, base_pos, base_yaw_deg: float) -> dict[str, str]:
+    """MJCF fragments for the chosen arm: `procedural` (robot.py) or `menagerie` (the Franka asset)."""
+    if arm == "procedural":
+        return {"meshdir": "", "defaults": "", "assets": "", "body": robot.arm_xml(tuple(base_pos), base_yaw_deg),
+                "actuators": robot.actuators_xml(), "contact": ""}
+    if arm == "menagerie":
+        from arrival.sim import menagerie
+
+        return menagerie.arm_fragments(tuple(base_pos), base_yaw_deg)
+    raise ValueError(f"unknown arm {arm!r} (procedural or menagerie)")
+
+
 def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: dict | None = None,
-               lighting: str = "neutral", n_people: int = 0) -> str:
+               lighting: str = "neutral", n_people: int = 0, arm: str = "procedural") -> str:
     """Returns an MJCF string. object_pos overrides {object_id: [x, y, z]} start positions."""
     object_pos = object_pos or {}
+    a = arm_parts(arm, base_pos, base_yaw_deg)
     fx = twin["fixtures"]
     sinks = [f for f in fx if f["type"] == "sink"]
     world = []
@@ -483,24 +496,25 @@ def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: di
     for o in twin["objects"]:
         world.append(object_xml(o, object_pos.get(o["id"], o["position"])))
     world += [people.person_xml(i) for i in range(n_people)]
-    world.append(robot.arm_xml(tuple(base_pos), base_yaw_deg))
+    world.append(a["body"])
     xs = [p for w in twin["walls"] for p in (w["start"][0], w["end"][0])]
     ys = [p for w in twin["walls"] for p in (w["start"][1], w["end"][1])]
     cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
     li = LIGHT[lighting]
+    meshdir = f' meshdir="{a["meshdir"]}"' if a["meshdir"] else ""
     return f"""<mujoco model="{twin['room_id']}_sim">
-<compiler angle="radian" autolimits="true"/>
+<compiler angle="radian" autolimits="true"{meshdir}/>
 <option timestep="0.002" cone="elliptic" impratio="10" integrator="implicitfast"/>
 <visual><global offwidth="640" offheight="480"/><headlight ambient="{0.25 * li} {0.25 * li} {0.25 * li}" diffuse="{0.3 * li} {0.3 * li} {0.3 * li}"/><quality shadowsize="2048"/></visual>
 <asset><texture name="floor" type="2d" builtin="checker" rgb1="0.62 0.55 0.47" rgb2="0.56 0.5 0.43" width="256" height="256"/>
-<material name="floor" texture="floor" texrepeat="8 8"/></asset>
-<default><geom friction="1.0 0.01 0.001"/></default>
+<material name="floor" texture="floor" texrepeat="8 8"/>{a['assets']}</asset>
+<default><geom friction="1.0 0.01 0.001"/>{a['defaults']}</default>
 <worldbody>
 <light name="ceiling" pos="{cx} {cy} 2.35" dir="0 0 -1" diffuse="{li} {li} {0.95 * li}" castshadow="true"/>
 <light name="fill" pos="{cx} {max(ys) - 0.3} 2.0" dir="0 -1 -1" diffuse="{0.4 * li} {0.4 * li} {0.4 * li}"/>
 <geom name="floor" type="plane" pos="{cx} {cy} 0" size="{max(xs)} {max(ys)} 0.1" material="floor"/>
 <camera name="overview" pos="{cx} {max(ys) - 0.1} 2.2" xyaxes="-1 0 0 0 -0.6 0.8" fovy="80"/>
 {''.join(world)}
-</worldbody>
-<actuator>{robot.actuators_xml()}</actuator>
+</worldbody>{a['contact']}
+<actuator>{a['actuators']}</actuator>
 </mujoco>"""

@@ -19,8 +19,10 @@ def _stats(x: np.ndarray) -> dict:
 
 
 class SimDatasetWriter:
-    def __init__(self, root: str | Path, room_id: str, fps: int, res: int, cameras: tuple[str, ...]):
+    def __init__(self, root: str | Path, room_id: str, fps: int, res: int, cameras: tuple[str, ...],
+                 arm: str = "procedural", finger_open: float = 0.05):
         self.root, self.room_id, self.fps, self.res, self.cameras = Path(root), room_id, fps, res, cameras
+        self.arm, self.finger_open = arm, finger_open
         if self.root.exists():
             shutil.rmtree(self.root)
         (self.root / "meta").mkdir(parents=True)
@@ -73,11 +75,13 @@ class SimDatasetWriter:
         modality["video"] = {c: {"original_key": f"observation.images.{c}"} for c in self.cameras}
         (meta / "modality.json").write_text(json.dumps(modality, indent=2))
         (meta / "embodiment.json").write_text(json.dumps({
-            "embodiment": "arrival_sim_panda", "dof_arm": 7, "dof_gripper": 1,
+            "embodiment": "arrival_sim_panda", "dof_arm": 7, "dof_gripper": 1, "arm": self.arm,
+            "gripper_open": self.finger_open,
             "control": "absolute_joint_position", "joints_are_placeholder": False,
-            "note": "Procedural Panda-like arm (Franka link offsets, capsule geometry) in MuJoCo. Gripper state = "
-                    "mean finger opening in meters (0..0.05). Base is fixed per episode; pose in episodes.jsonl is "
-                    "not recorded in state. Not a real-robot dataset.",
+            "note": ("Procedural Panda-like arm (Franka link offsets, capsule geometry)" if self.arm == "procedural"
+                     else "MuJoCo Menagerie Franka Emika Panda (Apache-2.0 meshes, fetched, not committed)")
+                    + f" in MuJoCo. Gripper state and action = finger opening in meters (0..{self.finger_open}). "
+                    "Base is fixed per episode; pose in episodes.jsonl is not recorded in state. Not a real-robot dataset.",
         }, indent=2))
         n = len(self.episodes)
         vid = {f"observation.images.{c}": {"dtype": "video", "shape": [self.res, self.res, 3],

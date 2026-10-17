@@ -38,7 +38,7 @@ def _finish_task(t: dict) -> dict:
 
 def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = "scripted", seed: int = 0,
              people: int = 2, holdout: bool = False, res: int = 128, out_dir: str | Path = "out",
-             log=print) -> dict:
+             arm: str = "procedural", log=print) -> dict:
     from arrival.sim.policy import ScriptedExpert, VLAClient
 
     policy = ScriptedExpert() if policy_name == "scripted" else VLAClient()
@@ -53,7 +53,7 @@ def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = 
         rows = []
         for task in tasks:
             t0 = time.perf_counter()
-            env = SimEnv(twin, task, res=res)
+            env = SimEnv(twin, task, res=res, arm=arm)
             ep = run_episode(env, policy, task)
             wall = time.perf_counter() - t0
             s = ep["safety"]
@@ -75,7 +75,7 @@ def evaluate(twin: dict, families: list[str], episodes: int, policy_name: str = 
     n = sum(f["episodes"] for f in per.values())
     k = sum(f["successes"] for f in per.values())
     report = {"room_id": room, "policy": policy_name, "episodes_per_family": episodes, "seed": seed,
-              "people": people, "holdout": holdout, "resolution": res, "families": per,
+              "people": people, "holdout": holdout, "resolution": res, "arm": arm, "families": per,
               "totals": {"episodes": n, "successes": k, "success_rate": round(k / n, 4) if n else None,
                          "wilson_95": wilson(k, n), "human_contacts": sum(f["human_contacts"] for f in per.values()),
                          "wall_seconds": round(time.perf_counter() - t_all, 2)}}

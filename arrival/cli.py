@@ -120,6 +120,12 @@ def _sim_args(a):
         return "mujoco is not installed: pip install -e '.[sim]'"
     from arrival.sim.tasks import SIM_FAMILIES
 
+    if a.arm == "menagerie":
+        from arrival.sim import menagerie
+
+        if not menagerie.available():
+            return menagerie.FETCH_HINT
+
     fams = list(SIM_FAMILIES) if a.families == "all" else [f.strip() for f in a.families.split(",") if f.strip()]
     bad = [f for f in fams if f not in SIM_FAMILIES]
     if bad or a.episodes < 1:
@@ -147,7 +153,7 @@ def cmd_sim(a) -> int:
     res = collect(twin, fams, a.episodes, a.out, people=a.people, policy_name=a.policy, res=a.res,
                   seed=a.seed, save_preview=a.save_preview,
                   planner_name=a.planner, split=a.split,
-                  use_generated_instructions=(a.instructions == "nemotron"))
+                  use_generated_instructions=(a.instructions == "nemotron"), arm=a.arm)
     r = res["report_data"]
     print(f"dataset: {res['dataset']}")
     print(f"report:  {res['report']}")
@@ -171,7 +177,7 @@ def cmd_eval(a) -> int:
 
     try:
         rep = evaluate(twin, fams, a.episodes, policy_name=a.policy, seed=a.seed, people=a.people,
-                       holdout=a.holdout, res=a.res, out_dir=a.out)
+                       holdout=a.holdout, res=a.res, out_dir=a.out, arm=a.arm)
     except VLANotConfigured as e:
         print(f"policy vla: {e}", file=sys.stderr)
         return EXIT_USAGE
@@ -236,6 +242,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Instruction source: template (fixed wordings) or nemotron (varied wordings with train/eval split)")
     m.add_argument("--split", choices=["train", "eval"], default="train",
                    help="Dataset instruction split: train or held-out eval")
+    m.add_argument("--arm", choices=["procedural", "menagerie"], default="procedural",
+                   help="menagerie = the Franka asset from MuJoCo Menagerie (python scripts/fetch_menagerie.py)")
     m.add_argument("--res", type=int, default=128)
     m.add_argument("--out", default="out")
     m.add_argument("--scans", default="scans")
@@ -251,6 +259,8 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--seed", type=int, default=0)
     e.add_argument("--people", type=int, default=2)
     e.add_argument("--holdout", action="store_true", help="held-out wording and start offset (docs/07-eval.md)")
+    e.add_argument("--arm", choices=["procedural", "menagerie"], default="procedural",
+                   help="menagerie = the Franka asset from MuJoCo Menagerie (python scripts/fetch_menagerie.py)")
     e.add_argument("--res", type=int, default=128)
     e.add_argument("--out", default="out")
     e.add_argument("--scans", default="scans")

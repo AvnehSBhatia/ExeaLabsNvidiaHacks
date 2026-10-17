@@ -13,7 +13,9 @@ RANGES = [(-2.9, 2.9), (-1.76, 1.76), (-2.9, 2.9), (-3.07, -0.07), (-2.9, 2.9), 
 KP = [3000, 3000, 2500, 2500, 1200, 1200, 600]
 FINGER_OPEN = 0.05
 ARM_JOINTS = [f"joint{i}" for i in range(1, 8)]
-COL = 'contype="2" conaffinity="1"'  # hits world + moving parts, no self-collision
+COL_ATTRS = {"contype": "2", "conaffinity": "1"}  # hits world + moving parts, no self-collision
+COL = " ".join(f'{k}="{v}"' for k, v in COL_ATTRS.items())
+WRIST_CAMERA = {"name": "wrist", "pos": "0.08 0 0.02", "xyaxes": "0 -1 0 0.5 0 0.86", "fovy": "75"}
 HID = 'group="3"'
 WHITE, DARK, GREY = "0.94 0.94 0.95 1", "0.13 0.13 0.14 1", "0.55 0.57 0.6 1"
 
@@ -49,8 +51,8 @@ def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
     hand = (f'<body name="hand" pos="0 0 0.107" quat="0.9238795 0 0 -0.3826834" gravcomp="1">'
             f'<inertial pos="0 0 0.03" mass="0.6" diaginertia="0.002 0.002 0.002"/>'
             f'<geom type="box" size="0.03 0.09 0.025" pos="0 0 0.03" rgba="0.2 0.2 0.22 1" {HID} {COL}/>'
-            + hand_vis +
-            f'<camera name="wrist" pos="0.08 0 0.02" xyaxes="0 -1 0 0.5 0 0.86" fovy="75"/>'
+            + hand_vis
+            + "<camera " + " ".join(f'{k}="{v}"' for k, v in WRIST_CAMERA.items()) + "/>" +
             f'<site name="eef" pos="0 0 0.115" size="0.01" rgba="1 0 0 0"/>'
             + "".join(
                 f'<body name="finger_{s}" pos="0 0 0.0584" gravcomp="1">'
@@ -83,20 +85,36 @@ def arm_xml(base_pos: tuple[float, float, float], base_yaw_deg: float) -> str:
                + _cyl(WHITE, 0.06, "0 0 -0.205", "0 0 -0.03"), l2)
     x, y, z = base_pos
     return (f'<body name="robot_base" pos="{x} {y} {z}" euler="0 0 {math.radians(base_yaw_deg)}">'
-            f'<geom type="cylinder" size="0.12 {z / 2}" pos="0 0 {-z / 2}" rgba="0.25 0.27 0.3 1"/>'
+            + _column_xml(z) +
             f'<geom type="cylinder" size="0.08 0.05" pos="0 0 0.05" rgba="0.92 0.92 0.95 1" {HID}/>'
             + _vis("cylinder", GREY, size="0.13 0.004", pos="0 0 0")
-            + _vis("cylinder", DARK, size="0.2 0.01", pos=f"0 0 {-z + 0.01}")
+            + _plate_xml(z)
             + _vis("cylinder", WHITE, size="0.09 0.06", pos="0 0 0.06")
             + _vis("box", WHITE, size="0.06 0.075 0.045", pos="-0.075 0 0.045")
-            + _vis("cylinder", DARK, size="0.062 0.006", pos="0 0 0.126") +
-            f'<camera name="ego_view" pos="-0.35 0.12 1.0" xyaxes="0 -1 0 0.62 0 0.78" fovy="70"/>'
+            + _vis("cylinder", DARK, size="0.062 0.006", pos="0 0 0.126")
+            + EGO_CAMERA +
             f'{l1}</body>')
 
 
-def actuators_xml() -> str:
+EGO_CAMERA = '<camera name="ego_view" pos="-0.35 0.12 1.0" xyaxes="0 -1 0 0.62 0 0.78" fovy="70"/>'
+
+
+def _column_xml(z: float) -> str:
+    return f'<geom type="cylinder" size="0.12 {z / 2}" pos="0 0 {-z / 2}" rgba="0.25 0.27 0.3 1"/>'
+
+
+def _plate_xml(z: float) -> str:
+    return _vis("cylinder", DARK, size="0.2 0.01", pos=f"0 0 {-z + 0.01}")
+
+
+def pedestal_xml(z: float) -> str:
+    """Column to the floor, floor plate and the ego camera for a mount that brings its own arm (inside robot_base)."""
+    return _column_xml(z) + _plate_xml(z) + EGO_CAMERA
+
+
+def actuators_xml(finger_open: float = FINGER_OPEN) -> str:
     arm = "".join(f'<position name="a{i + 1}" joint="joint{i + 1}" kp="{KP[i]}" kv="{KP[i] / 15}" '
                   f'ctrlrange="{RANGES[i][0]} {RANGES[i][1]}"/>' for i in range(7))
-    fing = "".join(f'<position name="g_{s}" joint="finger_{s}" kp="800" kv="30" ctrlrange="0 {FINGER_OPEN}" '
+    fing = "".join(f'<position name="g_{s}" joint="finger_{s}" kp="800" kv="30" ctrlrange="0 {finger_open}" '
                    f'forcerange="-40 40"/>' for s in ("l", "r"))
     return arm + fing

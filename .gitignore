@@ -5,3 +5,4 @@ __pycache__/
 .env
 *.egg-info/
 .pytest_cache/
+arrival/assets/menagerie/
