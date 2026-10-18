@@ -4,7 +4,7 @@
 
 [![Arrival demo: scan → digital twin → MuJoCo simulation → GR00T dataset](docs/media/demo.gif)](docs/media/demo.mp4)
 
-*30-second demo, rendered from the real code (an early cut: the room and arm visuals are being fixed under SIM-1 and MAN-1). Click for the full-quality mp4. Regenerate it with `python scripts/make_demo_video.py`.*
+*30-second demo, rendered from the real code before the SIM-1 and MAN-1 visual changes. Click for the full-quality mp4. The video still needs a re-render with the current scene (`python scripts/make_demo_video.py`).*
 
 ---
 
@@ -20,7 +20,9 @@ General robot policies like NVIDIA GR00T are trained on generic kitchens. When a
 
 Built for the NVIDIA × Nebius hackathon by Exea Labs and a team of 30. **Want to help? Jump to [Join in](#join-in-team-plan-for-30-people).** The product spec is [plan.pdf](plan.pdf).
 
-## Does it work? (status, Oct 14 2026)
+## Does it work? (status, Oct 18 2026)
+
+The success counts below come from earlier runs recorded in [docs/BUILD-LOG.md](docs/BUILD-LOG.md). This QA pass ran the full test suite (145 passed) and a fresh two-episode MuJoCo smoke run with dataset validation; it did not rerun every task family.
 
 | Stage | Status |
 |---|---|
@@ -43,7 +45,7 @@ There are two datasets. `python -m arrival sim` writes **physics-simulated** dat
 
 ## Get started (5 minutes)
 
-Requires Python 3.11+ on macOS, Linux or Windows (the suite and the MuJoCo sim run as is on Windows; use `.venv\Scriptsctivate` there). No GPU and no API keys needed.
+Requires Python 3.11+. The commands below use a macOS/Linux shell. Windows has not been verified in this QA pass; use `.\.venv\Scripts\Activate.ps1` in PowerShell or `.venv\Scripts\activate.bat` in Command Prompt. No GPU and no API keys are needed for the local demo.
 
 ```bash
 git clone https://github.com/AvnehSBhatia/ExeaLabsNvidiaHacks.git
@@ -115,7 +117,7 @@ Fine-tune GR00T N1.7 (next)                docs/REFERENCE.md#later-gr00t-fine-tu
 | `arrival/models/` | Nebius Token Factory (Nemotron) client |
 | `arrival/web/`, `arrival/jobs/` | Local web page and upload queue |
 | `scans/` | Sample rooms |
-| `tests/` | pytest suite. No network, runs in about 15 s |
+| `tests/` | pytest suite. No network; the full suite took about 2.5 minutes on one Apple Silicon laptop |
 | `docs/` | Reference, design contracts, access links, build log |
 
 ## Join in: team plan for 30 people
@@ -162,7 +164,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 ### SIM: Scene & realism (4)
 
-- **SIM-1: Kitchen visuals.** A recessed sink basin with a faucet, cabinet fronts with gaps and slim handles, toe-kick, countertop overhang, backsplash, stove burners, and a proper fridge. Code is in `arrival/sim/scene.py`. **The room currently looks buggy. This is a top priority.**
+- **SIM-1: Kitchen visuals.** Done in `arrival/sim/scene.py`: recessed sink and faucet, cabinet fronts and handles, toe-kick, countertop overhang, backsplash, stove burners, and fridge. The demo video predates these changes and still needs a re-render (DEM-2).
 - **SIM-2: Lighting & materials.** Key and fill lights, wood/stone/tile textures, and lighting variation that still matches the `dim/neutral/bright` axis.
 - **SIM-3: More moving parts.** Dishwasher door, oven door, microwave, faucet handle, upper cabinets, and drawers in every base cabinet, all on joints with names the policy can target. **Done except the extra drawer row:** oven door, dishwasher and microwave doors, the faucet lever and wall-cabinet doors are named joints with handle sites; `part_names()` in `arrival/sim/scene.py` lists them. A drawer row above the door bay would sit inside the MAN-2 door panel, so it was left out.
 - **SIM-4: More objects.** Plates, cups, bottles, pans, fruit, utensils, with realistic mass, friction and size variation. **Done:** cup, plate, bottle, pan, apple and spatula join the mug, bowl and sponge (`arrival/catalog/objects.py`), with mass scaled by volume, per-material friction and seeded size variation; the expert picks the cup, apple and bottle 4/4. The 1 cm spatula sits under the grasp height, so it is scenery until the grasp rule changes.
@@ -171,7 +173,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 
 ### MAN: Robot & manipulation (5)
 
-- **MAN-1: Make the arm look and move like a Panda.** Real link shapes and proportions, a Franka-style hand, a low mount, IK biased to the Panda "ready" posture so the elbow doesn't flip, smooth min-jerk motion, and no clipping. Code is in `arrival/sim/robot.py` and `ik.py`. **The arm currently looks buggy. This is a top priority.**
+- **MAN-1: Make the arm look and move like a Panda.** Done in `arrival/sim/robot.py` and `ik.py`: Panda-shaped visual links and hand, low mount, HOME-biased IK, and min-jerk motion. The demo video predates these changes (DEM-2).
 - **MAN-2: Open doors.** Done (see `docs/BUILD-LOG.md`). Both cabinet doors open at 100%; the fridge door is not a task yet (MAN-5). Check with `python -m arrival sim --families open_door --episodes 4 --save-preview`.
 - **MAN-3: Mobile base.** Add an actuated base so `counter_to_counter` (about 2 m between pick point and target) is reachable, and add base joints to the state/action spec.
 - **MAN-4: Grasp everything.** Bowl done: a hollow bowl and a rim grasp (see `docs/BUILD-LOG.md`). Cups, apples and bottles are picked by the body. Left: plates and pans are wider than the gripper opening.
@@ -206,7 +208,7 @@ LiDAR iPhones/iPads: iPhone 12 Pro or newer Pro models, or iPad Pro 2020+.
 ### DEM: Demo, web & QA (1 + everyone)
 
 - **DEM-1: Hosted page.** Deploy the web app, with a 3D or video viewer for each room and its dataset.
-- **DEM-2: Pitch video.** Re-render `scripts/make_demo_video.py` once SIM-1 and MAN-1 land, and add real scan footage from CAP.
+- **DEM-2: Pitch video.** SIM-1 and MAN-1 have landed. Re-render `scripts/make_demo_video.py` and add real scan footage from CAP when it exists.
 - **DEM-3: Release QA.** Before each demo, run a fresh-clone install, the full test suite, `sim` + `validate`, and check every README claim. Update the status table.
 
 ### Everyone: definition of done for a PR
