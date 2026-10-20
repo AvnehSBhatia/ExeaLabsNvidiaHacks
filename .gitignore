@@ -13,3 +13,6 @@ ios/build/
 *.xcuserstate
 .DS_Store
 MUJOCO_LOG.TXT
+
+# Demo site is deployed to Vercel from site/ (its own project), not versioned here
+/site/
