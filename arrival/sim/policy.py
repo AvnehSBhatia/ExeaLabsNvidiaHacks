@@ -51,6 +51,10 @@ FAUCET_UNDER, FAUCET_PUSH = 0.045, 0.05  # m: closed fingers start this far belo
 FLAP_TILTS = (0.0, 0.35, 0.7)  # rad below the door's horizontal for the hand on a flap-door bar; chosen per task
 FLAP_RELEASE = 0.5  # rad; a bottom-hinged door is let go here and falls to its flat stop (its handle swings
 # toward the base as it opens, and past this angle the wrist would have to fold back under the arm)
+CLOSE_DOOR_PUSH_Z = 0.10  # m above the bar where close_door pushes the panel: at 0.04 the hand ends the sweep low
+# and close to the base, with joint 2 on its -1.76 stop for 41 to 45 steps and 17 to 19 mm of IK error; at 0.10 joint 2
+# is near the stop for at most 20 steps and the IK error is 0. From 0.12 up the hand body runs 2.5 cm into the drawn
+# front at the top of the door (test_arm_stays_out_of_drawn_fronts)
 
 
 class ScriptedExpert(Policy):
@@ -148,12 +152,13 @@ class ScriptedExpert(Policy):
                 (touch + (0.03 - (0.03 + float(self.open_at)) * k / 4) * axis, R, c, s // 2, k < 4) for k in range(1, 5)] + [
                 (shut + 0.1 * axis, R, o, s)]
         if fam == "close_door":
-            # push the handle bar back along its arc from the outside, hand nearly vertical as in open_door
+            # push the panel back along its arc from the outside, hand nearly vertical as in open_door, the closed
+            # fingertips on the flat face above the bar (CLOSE_DOOR_PUSH_Z)
             hinge, h, _ = env.door_geometry(task)
             r = np.linalg.norm((h - hinge)[:2])
             a_open = np.arctan2(*(h - hinge)[[1, 0]])
             s, up = self.seg_steps, np.array([0, 0, 1.0])
-            grasp = np.array([0, 0, 0.04])
+            grasp = np.array([0, 0, CLOSE_DOOR_PUSH_Z])
 
             def pt(a):
                 return hinge + np.array([r * np.cos(a), r * np.sin(a), h[2] - hinge[2]]) + grasp

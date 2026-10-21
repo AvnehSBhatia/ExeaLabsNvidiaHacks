@@ -138,9 +138,24 @@ def test_scripted_expert_closes_open_parts(twin, family, fixture):
     env = SimEnv(twin, task, res=32)
     start = float(env.data.joint(joint).qpos[0])
     assert start == pytest.approx(DOOR_OPEN if family == "close_door" else DRAWER_OPEN)  # it really starts open
-    ep = run_episode(env, ScriptedExpert(), task)
+    expert = ScriptedExpert()
+    ep = run_episode(env, expert, task)
     assert ep["success"], ep["detail"]
     assert ep["ik_error"] < 0.03
+    if family == "close_door":
+        # pushing the panel above the bar keeps joint 2 off its stop for less than the per-episode validator's
+        # LIMIT_STEPS, where it used to be flagged
+        from arrival.export.quality import LIMIT_FRAC, LIMIT_STEPS
+
+        lo, hi = robot.RANGES[1]
+        q2 = np.array(expert.plan)[:, 1]
+        near = (q2 < lo + LIMIT_FRAC * (hi - lo)) | (q2 > hi - LIMIT_FRAC * (hi - lo))
+        run = longest = 0
+        for x in near:
+            run = run + 1 if x else 0
+            longest = max(longest, run)
+        assert longest < LIMIT_STEPS
+        assert ep["ik_error"] < 0.002
 
 
 def test_scripted_expert_puts_mug_in_drawer_and_wipes(twin):

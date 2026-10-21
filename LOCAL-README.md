@@ -24,8 +24,8 @@ Setup note: this machine has a stray `tests` package in `~/miniconda3/lib/python
 
 ## 3. Known gaps from the laptop work
 
-- Open-door is not 100% with default eval settings: 3/4 and 1/2 in the last check, with walker contacts on `counter_a_door`.
-- 5 of 28 episodes in a 224 px dataset are flagged by the quality check for joints at a limit (close_door and open_oven).
+- Open-door is 32/32 over seeds 0, 5, 7 and 11 with two people (Oct 21); the earlier walker contacts have not recurred since L27. On `counter_b` link7 still grazes the east wall (22 steps, 0.9 mm) every episode.
+- 3 of 28 episodes in the G1 run (seed 5, all families) are flagged for a joint at a limit, down from 5: open_oven twice (joint 5 on its stop for 71 steps; every flap tilt and grasp the expert has hits a stop from the fixed pedestal) and one close_door on `counter_a` (joint 7 for 43 steps on the approach).
 - The mirrored right-hinged fridge plan is not built; the scene only has a left hinge.
 - The memory cap (`ARRIVAL_MAX_JOB_MB`) was not measured on Linux.
 - `site/data` was not re-exported after the merged PRs, so its numbers are from the earlier pipeline run.
