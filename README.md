@@ -155,14 +155,14 @@ Integrated on feat/more-prs-2 and merged to main in #194. A row is shipped only 
 | L30 | Worker follow-ups: memory cap on Linux, DELETE /jobs/<id> with a retention note, cancel endpoint and per-episode progress DELETE /jobs/<id>, cancel and delete buttons, episode progress and an optional memory cap. The memory cap counts resident memory: the worker reads the job's process tree every 0.5 s and kills it past ARRIVAL_MAX_JOB_MB with a MemoryLimitError naming the stage (#192). The old RLIMIT_AS cap followed the core count and crashed jobs (docs/ref/MEMCAP.md). | M | should | Shipped | #192 | @AvnehSBhatia, Claude Code, @AKSHAJ-SHELL |
 | L31 | Synchronized ego, wrist and exocentric capture from one simulation state, with a side-by-side preview and an optional three-camera GR00T config From rishith-c/feat/ego-exocentric-capture, merged on feat/more-prs-2 and on main via #194. Offline key and schema checks only; no three-view GR00T training or inference has been run. | M | nice | Shipped | none | @rishith-c |
 
-### On this branch, not on main (2)
+### Landed after #194 (2)
 
-Merged into feat/more-prs-2 after #194. Not on main yet, so not shipped.
+Merged to main in #202.
 
 | id | what | size | priority | status | PRs or issue | who |
 |---|---|---|---|---|---|---|
-| L32 | Demo page clicks: stage buttons, the scan/twin divider, and the phone disclaimer Checked in a browser at 1024 px and 375 px, both themes. The faded hero was still taking the stage-button clicks, the hidden dock cards were taking the divider drag, and on a phone the intro covered the disclaimer. Offline asset checks already passed. Not deployed (C2). | S | should | In review | #195 | @AKSHAJ-SHELL |
-| L33 | Re-export site/data and stop the exporter deleting todo.json State rows are 11 wide; the page packs the first 8 (arm and gripper). Absolute paths are stripped. todo.json is kept across a re-export. Checked with the exporter tests and a headless page load. | S | should | In review | #196 | @JmarbinGG |
+| L32 | Demo page clicks: stage buttons, the scan/twin divider, and the phone disclaimer Checked in a browser at 1024 px and 375 px, both themes. The faded hero was still taking the stage-button clicks, the hidden dock cards were taking the divider drag, and on a phone the intro covered the disclaimer. Offline asset checks already passed. Not deployed (C2). | S | should | Shipped | #195 | @AKSHAJ-SHELL |
+| L33 | Re-export site/data and stop the exporter deleting todo.json State rows are 11 wide; the page packs the first 8 (arm and gripper). Absolute paths are stripped. todo.json is kept across a re-export. Checked with the exporter tests and a headless page load. | S | should | Shipped | #196 | @JmarbinGG |
 
 ### Laptop: next (0)
 

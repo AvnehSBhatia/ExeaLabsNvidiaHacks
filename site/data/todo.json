@@ -802,13 +802,13 @@
   },
   {
    "id": "branch",
-   "title": "On this branch, not on main",
-   "blurb": "Merged into feat/more-prs-2 after #194. Not on main yet, so not shipped.",
+   "title": "Landed after #194",
+   "blurb": "Merged to main in #202.",
    "items": [
     {
      "id": "L32",
      "title": "Demo page clicks: stage buttons, the scan/twin divider, and the phone disclaimer",
-     "status": "review",
+     "status": "done",
      "owner_kind": "laptop",
      "size": "S",
      "priority": "should",
@@ -823,7 +823,7 @@
     {
      "id": "L33",
      "title": "Re-export site/data and stop the exporter deleting todo.json",
-     "status": "review",
+     "status": "done",
      "owner_kind": "laptop",
      "size": "S",
      "priority": "should",
