@@ -77,6 +77,7 @@ class SimDatasetWriter:
                               "arrival_family": task["family"], "arrival_lighting": task["lighting"],
                               "arrival_people": task.get("people", 0),
                               **({"arrival_task_id": task["task_id"]} if "task_id" in task else {}),
+                              **({"arrival_planned_by": task["planned_by"]} if "planned_by" in task else {}),
                               "arrival_success_detail": ep["detail"],
                               "arrival_min_human_distance_m": ep["safety"]["min_human_distance_m"],
                               "arrival_human_contact": ep["safety"]["human_contact"],

@@ -493,7 +493,7 @@ One file per episode. `index` counts successful-episode frames only, starting at
 
 Unique instruction strings get unique task indexes, assigned in first-seen order.
 
-The `sim` dataset adds per-episode fields to `episodes.jsonl`: `arrival_family`, `arrival_lighting`, `arrival_people` (count), `arrival_success_detail`, `arrival_people_xy` (subsampled walker positions), `arrival_min_human_distance_m` (smallest horizontal clearance between a robot collision geom and a person over the episode, metres; `null` with no people) and `arrival_human_contact` (bool; always `false` in a written dataset because contact episodes are dropped before export).
+The `sim` dataset adds per-episode fields to `episodes.jsonl`: `arrival_family`, `arrival_lighting`, `arrival_people` (count), `arrival_success_detail`, `arrival_people_xy` (subsampled walker positions), `arrival_min_human_distance_m` (smallest horizontal clearance between a robot collision geom and a person over the episode, metres; `null` with no people) and `arrival_human_contact` (bool; always `false` in a written dataset because contact episodes are dropped before export). With `--planner vlm`, `arrival_planned_by` says what actually planned the episode: `token_factory`, `cache` or `rule_based` (the fallback with no key or a failed call); `planner` in the provenance and report is only what was asked for.
 
 ### info.json
 

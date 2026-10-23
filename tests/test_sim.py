@@ -420,6 +420,21 @@ def test_planner_never_rewrites_the_tasks_family(twin, tmp_path, monkeypatch):
     assert list(res["report_data"]["families"]) == ["open_fridge"]
 
 
+def test_each_episode_records_what_actually_planned_it(twin, tmp_path, monkeypatch):
+    # with no key the vlm planner falls back to the rule parser; the dataset must say so, not just "planner: vlm"
+    monkeypatch.setattr(VLMPlanner, "plan", lambda self, *a, **k: setattr(self, "source", "rule_based") or
+                        {"family": "open_drawer", "object": None, "target": None})
+    collect(twin, ["open_drawer"], 1, tmp_path / "vlm", people=0, res=32, planner_name="vlm",
+            cache_path=tmp_path / "c.json", log=lambda *_: None)
+    rows = [json.loads(x) for x in
+            next((tmp_path / "vlm").glob("datasets/*/meta/episodes.jsonl")).read_text().splitlines()]
+    assert rows and all(r["arrival_planned_by"] == "rule_based" for r in rows)
+    collect(twin, ["open_drawer"], 1, tmp_path / "rule", people=0, res=32, log=lambda *_: None)
+    rows = [json.loads(x) for x in
+            next((tmp_path / "rule").glob("datasets/*/meta/episodes.jsonl")).read_text().splitlines()]
+    assert rows and not any("arrival_planned_by" in r for r in rows)
+
+
 def test_collect_skips_a_task_whose_policy_raises_and_closes_its_env(twin, tmp_path, monkeypatch):
     from arrival.sim.policy import ScriptedExpert
 
