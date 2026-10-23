@@ -391,7 +391,7 @@ def cmd_eval(a) -> int:
     from arrival.sim.policy import VLANotConfigured
 
     defaults = dict(room="hero_kitchen", families="counter_to_sink,open_drawer,move_on_table", episodes=4, seed=0,
-                    people=2, holdout=False, res=128, scans="scans")
+                    people=2, holdout=False, res=128, scans="scans", base="fixed", arm="procedural")
     try:
         if getattr(a, "manifest", None):
             conflicts = ["--" + key for key in defaults if getattr(a, key, None) is not None]
@@ -648,8 +648,8 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--seed", type=int)
     e.add_argument("--people", type=int)
     e.add_argument("--holdout", action="store_true", default=None, help="held-out wording and start offset")
-    e.add_argument("--base", choices=["fixed", "mobile"], default="fixed", help="mobile: the pedestal drives (MAN-3)")
-    e.add_argument("--arm", choices=["procedural", "menagerie"], default="procedural",
+    e.add_argument("--base", choices=["fixed", "mobile"], help="mobile: the pedestal drives (MAN-3); default fixed")
+    e.add_argument("--arm", choices=["procedural", "menagerie"],
                    help="menagerie = the real Franka asset from MuJoCo Menagerie (python scripts/fetch_menagerie.py; meshes are not committed)")
     e.add_argument("--res", type=int)
     e.add_argument("--out", default="out")

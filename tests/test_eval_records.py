@@ -234,3 +234,15 @@ def test_cost_reader_includes_legacy_and_complete_runs_only(hero_twin, tmp_path,
     assert len([r for r in rows if r.get("run_id") == report["run_id"]]) == 2
     text = markdown({"rows": rows, "dollars": {}, "comparison": {"measured": False, "reason": "no baseline"}})
     assert report["run_id"] in text
+
+
+def test_cli_manifest_refuses_base_and_arm(hero_twin, tmp_path, rollouts, capsys):
+    from arrival.cli import main
+
+    frozen = make_manifest(hero_twin, ["open_drawer"], 1, res=32, log=lambda *_: None)
+    path = tmp_path / "trials.json"
+    path.write_text(json.dumps(frozen), encoding="utf-8")
+    for option in (["--base", "mobile"], ["--arm", "menagerie"], ["--base", "fixed"]):
+        assert main(["eval", "--manifest", str(path), "--out", str(tmp_path), *option]) == 2
+        assert option[0] in capsys.readouterr().err
+    assert not rollouts
