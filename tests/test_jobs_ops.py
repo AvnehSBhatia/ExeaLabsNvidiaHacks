@@ -847,3 +847,14 @@ def test_job_under_memory_limit_is_not_killed(tmp_path):
     st = run_once(out, limits=Limits(max_job_seconds=60, max_job_bytes=1 << 30, job_retries=0), isolate=True,
                   log=QUIET, child_cmd=[sys.executable, "-c", small])
     assert st["status"] == "failed" and st["error"].startswith("WorkerProcessError") and "code 7" in st["error"]
+
+
+def test_work_cli_refuses_a_poll_time_sleep_cannot_take(tmp_path, monkeypatch, capsys):
+    from arrival.cli import main
+
+    for value in ("-1", "nan", "inf"):
+        assert main(["work", "--poll", value, "--out", str(tmp_path)]) == 2
+        assert "--poll must be a finite number >= 0" in capsys.readouterr().err
+    seen = {}
+    monkeypatch.setattr("arrival.jobs.worker.work", lambda out, **kw: seen.update(kw) or 0)
+    assert main(["work", "--once", "--poll", "0", "--out", str(tmp_path)]) == 0 and seen["poll"] == 0

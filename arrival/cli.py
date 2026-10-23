@@ -469,6 +469,9 @@ def cmd_work(a) -> int:
         limits = Limits.from_env().replace(max_episodes=a.max_episodes, max_people=a.max_people,
                                            max_job_seconds=a.max_job_seconds, retention_hours=a.retention_hours,
                                            job_retries=a.retries)
+        if not 0 <= a.poll < float("inf"):  # time.sleep refuses these the first time the queue is empty
+            print("--poll must be a finite number >= 0", file=sys.stderr)
+            return EXIT_USAGE
         n = work(Path(a.out), once=a.once, poll=a.poll, limits=limits, episodes=a.episodes, families=fams,
                  people=a.people, res=a.res, seed=a.seed)
     except LimitError as e:
