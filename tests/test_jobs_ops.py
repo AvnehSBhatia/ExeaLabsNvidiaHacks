@@ -557,6 +557,17 @@ def test_work_cli_takes_retries_from_the_env_then_the_flag(tmp_path, monkeypatch
     assert main(["work", "--once", "--retries", "-1", "--out", str(tmp_path)]) == 2
 
 
+@pytest.mark.parametrize("flag", ["--max-job-seconds", "--retention-hours"])
+@pytest.mark.parametrize("value", ["-5", "nan", "inf"])
+def test_work_cli_refuses_a_bad_time_limit_before_touching_jobs(tmp_path, flag, value):
+    from arrival.cli import main
+
+    out = tmp_path / "out"
+    job = create_job(jobs_of(out), "k.json", data=b"not json")
+    assert main(["work", "--once", flag, value, "--out", str(out)]) == 2
+    assert status_of(out, job)["status"] == "queued"
+
+
 def test_requeue_sets_not_before_with_exponential_backoff(tmp_path):
     d = tmp_path / "job_x"
     d.mkdir()

@@ -465,6 +465,10 @@ def cmd_work(a) -> int:
     if a.retries is not None and a.retries < 0:
         print("--retries must be >= 0", file=sys.stderr)
         return EXIT_USAGE
+    for flag, value in (("--max-job-seconds", a.max_job_seconds), ("--retention-hours", a.retention_hours)):
+        if value is not None and not 0 <= value < float("inf"):  # same rule as the ARRIVAL_* variables; NaN fails it
+            print(f"{flag} must be a finite number >= 0", file=sys.stderr)
+            return EXIT_USAGE
     try:  # ARRIVAL_* variables first, then the flags
         limits = Limits.from_env().replace(max_episodes=a.max_episodes, max_people=a.max_people,
                                            max_job_seconds=a.max_job_seconds, retention_hours=a.retention_hours,
