@@ -111,6 +111,16 @@ def test_server_answers_500_for_an_invalid_chunk():
         assert e.value.code == 500
 
 
+def test_server_answers_400_for_an_integer_too_large_for_a_float():
+    body = encode_request(_obs(), "x")
+    raw = json.dumps(body).replace(json.dumps(body["state.gripper"]), "[1" + "0" * 400 + "]").encode()
+    with MockPolicyServer() as srv:
+        req = urllib.request.Request(srv.url + "/act", data=raw, method="POST")
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req, timeout=5)
+        assert e.value.code == 400
+
+
 def test_client_rejects_malformed_server_reply(monkeypatch):
     from arrival.policy_server import mock_server  # a reply the server's own encoder would refuse to build
     monkeypatch.setattr(mock_server, "encode_response", lambda chunk: {"action.single_arm": [], "action.gripper": []})

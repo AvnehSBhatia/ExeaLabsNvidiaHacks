@@ -118,7 +118,7 @@ def _numeric_array(value, key: str) -> np.ndarray:
         if any(isinstance(item, (bool, np.bool_)) for item in raw.flat):
             raise ProtocolError(f"{key} must contain numbers, not booleans")
         return np.asarray(value, dtype=float)
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, OverflowError) as e:
         raise ProtocolError(f"{key} is not numeric: {e}") from e
 
 
@@ -126,7 +126,7 @@ def encode_response(chunk: np.ndarray) -> dict:
     """chunk [T,8] (7 arm targets + gripper) or [T,11] (plus base x, y, yaw) -> response body."""
     try:
         chunk = np.asarray(chunk, dtype=float)
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError, OverflowError) as e:
         raise ProtocolError(f"chunk is not numeric: {e}") from e
     if chunk.ndim != 2 or chunk.shape[1] not in SCHEMA_DIM.values() or chunk.shape[0] < 1:
         raise ProtocolError(f"chunk must be [T,8] (arm schema) or [T,11] (mobile schema), got shape {list(chunk.shape)}")

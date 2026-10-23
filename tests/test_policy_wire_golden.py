@@ -129,6 +129,20 @@ def test_inbound_policy_vectors_reject_json_booleans():
         decode_response(response)
 
 
+def test_integers_too_large_for_a_float_are_protocol_errors():
+    huge = 10 ** 400
+    body = GOLDEN["arm"]["request"].copy()
+    body["state.gripper"] = [huge]
+    with pytest.raises(ProtocolError, match="not numeric"):
+        decode_request(body)
+    response = GOLDEN["arm"]["response"].copy()
+    response["action.gripper"] = [[huge], [0.0], [0.0]]
+    with pytest.raises(ProtocolError, match="not numeric"):
+        decode_response(response)
+    with pytest.raises(ProtocolError, match="not numeric"):
+        encode_response([[huge] * 8])
+
+
 def test_shim_maps_base_key():
     req = decode_request(GOLDEN["mobile"]["request"])
     obs = gr00t_shim.to_observation(req)
