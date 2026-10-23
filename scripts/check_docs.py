@@ -17,7 +17,8 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-DOCS = ("README.md", "docs/REFERENCE.md", "ios/README.md")
+GUIDES = ("DEPLOY", "GR00T-FINETUNE", "RELEASE-QA", "SCANNING", "07-eval", "08-access")
+DOCS = ("README.md", "docs/REFERENCE.md", "ios/README.md", *(f"docs/{g}.md" for g in GUIDES))
 PATH_ROOTS = ("arrival", "scripts", "tests", "docs", "configs")
 
 FENCE = re.compile(r"^\s*```")

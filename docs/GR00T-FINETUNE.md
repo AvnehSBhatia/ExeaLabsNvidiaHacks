@@ -12,7 +12,7 @@ base targets as absolute. Both use a 16-step action horizon, matching the curren
 Generate an all-video sim dataset first, then run the preflight from this repo:
 
 ```bash
-python -m arrival sim --episodes 100 --people 0 --videos all --out out/training
+python -m arrival sim --episodes 100 --people 0 --out out/training
 python scripts/prepare_gr00t.py out/training/datasets/hero_kitchen_sim \
   --gr00t-root /path/to/Isaac-GR00T --steps 100
 ```
