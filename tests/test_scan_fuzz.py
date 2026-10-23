@@ -317,6 +317,11 @@ def test_specific_corruptions_name_the_offender(mutation, needle):
         roomplan.to_bundle(rp, "fuzz")
 
 
+def test_null_rooms_reads_like_no_rooms():
+    rp = _room(objects=[_obj("sink", "sink", 0.0, 0.0)])
+    assert roomplan.to_bundle({**rp, "rooms": None}, "fuzz") == roomplan.to_bundle(rp, "fuzz")
+
+
 def test_zero_size_object_falls_back_to_catalog_default():
     rp = _room(objects=[_obj("sink", "sink", 0.0, 0.0)])
     rp["objects"][0]["dimensions"] = [0.0, 0.0, 0.0]

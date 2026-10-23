@@ -271,7 +271,7 @@ def _clean(roomplan) -> dict:
     out = dict(roomplan)
     if rooms is not None:
         out["rooms"] = [dict(r) for r in rooms]  # the caller's dicts stay untouched
-    for scope in [out] + out.get("rooms", []):
+    for scope in [out] + (out.get("rooms") or []):
         if scope.get("story") is not None and (not isinstance(scope["story"], int) or isinstance(scope["story"], bool)):
             raise ScanBundleError(f"story must be an integer, got {scope['story']!r}")
         for key in SURFACES + ("objects",):
