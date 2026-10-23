@@ -26,7 +26,8 @@ def test_quick(demo_all, tmp_path):
     assert s["physically_valid"] is True
     assert s["dataset"]["joints_are_placeholder"] is False
     assert s["successes"] >= 1
-    assert [r["status"] for r in s["stages"]] == ["PASS"] * 6
+    assert [r["status"] for r in s["stages"]] == ["PASS"] * 7
+    assert [r["stage"] for r in s["stages"]][3:5] == ["validate", "loader check"]
     assert s["per_family"] and all(v["episodes"] == 2 for v in s["per_family"].values())
     assert all(v is None for v in s["cost"].values())
     assert demo_all.HONEST_LABEL in (tmp_path / "demo_summary.md").read_text()
@@ -65,3 +66,14 @@ def test_missing_room_fails_with_one_line(demo_all, tmp_path, capsys):
     assert err.startswith("demo_all: FAIL") and "no_such_room" in err and "\n" not in err
     s = json.loads((tmp_path / "demo_summary.json").read_text())
     assert s["overall"] == "FAIL" and s["stages"][0]["status"] == "FAIL"
+
+
+def test_a_failed_loader_check_fails_the_demo(demo_all, tmp_path, monkeypatch):
+    from arrival.export import loader_check
+
+    monkeypatch.setattr(loader_check, "check_loader", lambda root: {
+        "ok": False, "errors": [{"code": "missing_meta", "msg": "missing meta/stats.json"}], "warnings": [], "info": {}})
+    assert demo_all.main(["--quick", "--out", str(tmp_path)]) == 1
+    s = json.loads((tmp_path / "demo_summary.json").read_text())
+    assert s["overall"] == "FAIL" and s["stages"][-1]["stage"] == "loader check"
+    assert "missing_meta: missing meta/stats.json" in s["error"]

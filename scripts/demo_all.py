@@ -1,4 +1,4 @@
-"""One-command demo (DEM-4): scan -> twin -> MuJoCo sim -> GR00T dataset -> validate -> eval -> contact sheet.
+"""One-command demo (DEM-4): scan -> twin -> MuJoCo sim -> GR00T dataset -> validate -> loader check -> eval -> contact sheet.
 
     python scripts/demo_all.py --quick            # 2 episodes, 1 person, 64 px (about a minute, under 1.5 GB)
     python scripts/demo_all.py --full --serve     # 8 episodes, 2 people, 128 px, then the local page
@@ -281,6 +281,16 @@ def run(room: str, mode: str, out: Path, scans: str = "scans", log=print) -> tup
             return f"{info['total_episodes']} episodes valid"
 
         _stage(stages, "validate", check, log)
+
+        def loader():
+            from arrival.export.loader_check import check_loader
+
+            res = check_loader(ds_dir)
+            if not res["ok"]:
+                raise StageFailed("; ".join(f"{e['code']}: {e['msg']}" for e in res["errors"][:3]))
+            return f"{res['info']['videos_decoded']} mp4s decoded, {len(res['warnings'])} warnings"
+
+        _stage(stages, "loader check", loader, log)
 
         def ev():
             from arrival.eval.harness import evaluate

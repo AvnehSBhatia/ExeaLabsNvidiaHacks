@@ -183,7 +183,7 @@ python scripts/demo_all.py --room hero_kitchen --out out/demo --serve
 python scripts/demo_all.py --quick --timeout 300     # abort with exit 1 after 300 s (default 900, 0 = none)
 ```
 
-Runs scan and compile, twin layout PNG, sim dataset, validate, scripted-expert eval and contact sheet, prints PASS or FAIL per stage, and writes `<out>/demo_summary.md`, `demo_summary.json` and a self-contained `<out>/index.html` (stage table plus the contact sheet inlined; open it from disk, no server). See `docs/ref/DEM-4.md`.
+Runs scan and compile, twin layout PNG, sim dataset, validate, loader check, scripted-expert eval and contact sheet, prints PASS or FAIL per stage, and writes `<out>/demo_summary.md`, `demo_summary.json` and a self-contained `<out>/index.html` (stage table plus the contact sheet inlined; open it from disk, no server). See `docs/ref/DEM-4.md`.
 
 It needs no network and no keys. `TOKEN_FACTORY_*`, `TAVILY_*`, `GR00T_POLICY_URL` and `COSMOS_URL` are hidden from the run, and every connection to a non-loopback address is refused for its duration. Before running it picks a MuJoCo GL backend by rendering a 16 px frame in a child process, trying the platform default first, then `egl`, `osmesa` and `glfw` on Linux (`glfw` on macOS, `glfw` then `egl` on Windows); an exported `MUJOCO_GL` is respected and tried alone. Exit codes: 0 all stages passed, 1 a stage failed or `--timeout` expired, 2 the machine cannot run it (mujoco not installed: `pip install -e ".[sim]"`, or no working OpenGL backend, with one line saying what was tried). Measured on an Apple Silicon laptop: about 20 s and 0.5 GB peak for `--quick`; the install itself needs a package index once.
 

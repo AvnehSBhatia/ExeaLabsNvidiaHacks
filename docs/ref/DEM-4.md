@@ -6,8 +6,9 @@
 2. twin layout PNG (`scripts/render_rooms.render`) to `<out>/renders/<room>_top.png`
 3. sim dataset (`arrival.sim.collect.collect`, families `counter_to_sink,open_drawer`, previews on)
 4. validate (`arrival.export.validate.validate`)
-5. closed-loop eval of the scripted expert, 2 episodes per family (`arrival.eval.harness.evaluate`)
-6. contact sheet check (`<out>/previews/<room>_sim_contact.png`, written by stage 3)
+5. loader check (`arrival.export.loader_check.check_loader`: the files a LeRobot v2 loader reads, with the mp4s decoded)
+6. closed-loop eval of the scripted expert, 2 episodes per family (`arrival.eval.harness.evaluate`)
+7. contact sheet check (`<out>/previews/<room>_sim_contact.png`, written by stage 3)
 
 | Flag | Meaning |
 |---|---|
