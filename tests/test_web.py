@@ -852,6 +852,8 @@ def test_serve_hardening_flags_parse_and_validate():
     d = build_parser().parse_args(["serve"])
     assert (d.max_upload_mb, d.rate_limit, d.max_queued, d.public, d.behind_proxy) == (200, 10, 50, False, False)
     assert main(["serve", "--max-upload-mb", "0"]) == EXIT_USAGE
+    assert main(["serve", "--max-upload-mb", "nan"]) == EXIT_USAGE
+    assert main(["serve", "--max-upload-mb", "inf"]) == EXIT_USAGE
     assert main(["serve", "--rate-limit", "-1"]) == EXIT_USAGE
 
 
