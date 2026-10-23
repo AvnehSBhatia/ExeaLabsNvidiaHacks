@@ -1,4 +1,4 @@
-"""python -m arrival demo | validate | serve | sim | merge-shards | subset | eval | realism | work | gc | doctor | summary | export-site"""
+"""python -m arrival demo | validate | serve | sim | merge-shards | subset | eval | eval-compare | realism | work | gc | doctor | summary | export-site"""
 
 from __future__ import annotations
 
@@ -427,6 +427,19 @@ def cmd_eval(a) -> int:
     return EXIT_OK
 
 
+def cmd_eval_compare(a) -> int:
+    """Paired sign test between two eval runs of the same manifest."""
+    from arrival.eval.compare import CompareError, compare, table
+
+    try:
+        res = compare(a.run_a, a.run_b)
+    except CompareError as e:
+        print(f"eval-compare: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    print(table(res))
+    return EXIT_OK
+
+
 def cmd_realism(a) -> int:
     """Score the twin's render against a scan's held-out RGB-D frames; writes out/eval/<room>_realism.json and .png."""
     try:
@@ -657,6 +670,10 @@ def build_parser() -> argparse.ArgumentParser:
     e.add_argument("--manifest", help="replay a previous run's manifest.json without resampling")
     e.add_argument("--checkpoint-id", help="caller-declared checkpoint label; required for VLA")
     e.set_defaults(fn=cmd_eval)
+    ec = sub.add_parser("eval-compare", help="paired sign test between two eval runs that replayed the same manifest")
+    ec.add_argument("run_a", help="out/eval/<run_id> (or its episodes.jsonl)")
+    ec.add_argument("run_b")
+    ec.set_defaults(fn=cmd_eval_compare)
     rl = sub.add_parser("realism", help="score the twin's render against a scan's held-out RGB-D frames "
                                         "(JSON + side-by-side PNG, misaligned-pose control)")
     rl.add_argument("scan", help="scan folder (or a room id under --scans) holding frames_manifest.json and "
