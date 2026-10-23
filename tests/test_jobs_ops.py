@@ -1,6 +1,7 @@
 """Worker limits, concurrent claiming, retry, retention and usage metering. Offline, no sim: jobs here are corrupt
 uploads, fake child processes or a stand-in for the sim, so each test costs well under a second."""
 
+import contextlib
 import http.client
 import json
 import os
@@ -674,6 +675,38 @@ def test_delete_job_removes_twin_dataset_report_and_zip_but_not_a_busy_job(tmp_p
     with pytest.raises(JobBusy):
         delete_job(out, q["id"])
     assert (jobs_of(out) / q["id"]).exists()
+
+
+@contextlib.contextmanager
+def _undeletable(path):
+    """Make ``path`` impossible to delete: held open on Windows, its folder read-only elsewhere."""
+    if os.name == "nt":
+        with open(path, "rb"):
+            yield
+        return
+    if os.geteuid() == 0:
+        pytest.skip("root can delete from a read-only folder")
+    path.parent.chmod(0o500)
+    try:
+        yield
+    finally:
+        path.parent.chmod(0o700)
+
+
+@pytest.mark.parametrize("blocked", ["dataset", "zip"])
+def test_gc_keeps_a_job_it_could_not_fully_delete_and_retries_it(tmp_path, blocked):
+    out = tmp_path / "out"
+    job, room = _finished_job(out, "old", 48)
+    folder = jobs_of(out) / job["id"]
+    target = out / "datasets" / f"{room}_sim" / "f.bin" if blocked == "dataset" else folder / "dataset.zip"
+    with _undeletable(target):
+        res = gc(out, 24, log=QUIET)
+        assert res["removed"] == [] and res["bytes"] == 0
+        assert (folder / "status.json").exists()  # still listed, so the next sweep finds it again
+        with pytest.raises(OSError):
+            delete_job(out, job["id"])
+    assert gc(out, 24, log=QUIET)["removed"] == [job["id"]]
+    assert not folder.exists() and not target.exists()
 
 
 def test_retention_does_not_erase_metering(tmp_path):

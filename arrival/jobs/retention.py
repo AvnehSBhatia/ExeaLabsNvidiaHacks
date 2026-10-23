@@ -57,12 +57,21 @@ def delete_job(out_dir: Path, job_id: str, dry_run: bool = False) -> dict | None
     paths = job_paths(out, job_id, status)
     freed = sum(_size(p) for p in paths)
     if not dry_run:
-        for p in paths:
-            if p.is_dir():
-                shutil.rmtree(p, ignore_errors=True)
-            else:
-                p.unlink(missing_ok=True)
+        # A file that cannot be removed (held open on Windows, no permission) raises OSError. status.json goes last so
+        # the job stays listed and a later gc or DELETE retries it instead of leaving files no job points to.
+        *owned, folder = paths
+        for p in owned + [c for c in folder.iterdir() if c.name != "status.json"]:
+            _remove(p)
+        _remove(folder / "status.json")
+        folder.rmdir()
     return {"id": job_id, "bytes": freed, "paths": [str(p) for p in paths]}
+
+
+def _remove(path: Path) -> None:
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink(missing_ok=True)
 
 
 def gc(out_dir: Path, max_age_hours: float, now: float | None = None, dry_run: bool = False, log=print) -> dict:
