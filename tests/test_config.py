@@ -125,3 +125,11 @@ def test_env_example_lists_every_setting():
     for name in config.SETTINGS:
         assert re.search(rf"^#? ?{name}=", text, re.M), name
     assert not re.search(r"^(\w+_API_KEY)=\S", text, re.M), "no real keys in the example"
+
+
+def test_env_example_lists_every_job_limit():
+    from arrival.jobs import limits
+
+    text = (REPO / ".env.example").read_text()
+    for var, _ in limits.ENV.values():
+        assert re.search(rf"^#? ?{var}=", text, re.M), var
