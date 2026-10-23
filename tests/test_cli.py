@@ -41,3 +41,36 @@ def test_mobile_base_with_a_served_policy_is_a_usage_error(tmp_path, capsys, mon
     ns = _ns(tmp_path, room="hero_kitchen", policy="vla", base="mobile")
     assert getattr(cli, cmd)(ns) == cli.EXIT_USAGE
     assert "--base mobile needs --policy scripted" in capsys.readouterr().err
+
+
+def _room(tmp_path):
+    import json
+    import os
+    import shutil
+
+    from conftest import REPO
+
+    scans = tmp_path / "scans"
+    shutil.copytree(REPO / "scans" / "hero_kitchen", scans / "hero_kitchen")
+    twin = tmp_path / "out" / "twins" / "hero_kitchen" / "twin.json"
+    twin.parent.mkdir(parents=True)
+    twin.write_text(json.dumps({"cached": True}))
+    return scans, twin, scans / "hero_kitchen" / "scan.json", os
+
+
+def _twin(tmp_path, scans):
+    pytest.importorskip("mujoco")
+    fams, twin = cli._sim_args(_ns(tmp_path / "out", base="fixed", arm="procedural", room="hero_kitchen", scans=str(scans)))
+    return twin
+
+
+def test_cached_twin_is_used_while_it_is_newer_than_the_scan(tmp_path):
+    scans, twin, scan, os = _room(tmp_path)
+    os.utime(scan, (1_000_000, 1_000_000))
+    assert _twin(tmp_path, scans) == {"cached": True}
+
+
+def test_cached_twin_is_recompiled_after_the_scan_changes(tmp_path):
+    scans, twin, scan, os = _room(tmp_path)
+    os.utime(twin, (1_000_000, 1_000_000))
+    assert "cached" not in _twin(tmp_path, scans)

@@ -160,6 +160,19 @@ def cmd_doctor(a) -> int:
     return EXIT_INVALID if doctor.exit_code(checks) else EXIT_OK
 
 
+def _load_twin(room: str, out: str | Path, scans: str | Path) -> dict:
+    """The compiled twin under <out>/twins, unless scans/<room>/scan.json was saved after it was written;
+    then the scan is compiled again. Raises FileNotFoundError when neither exists."""
+    from arrival.scan import bundle as scan_bundle
+    from arrival.twin.compile import compile_twin
+
+    twin_path = Path(out) / "twins" / room / "twin.json"
+    scan_path = resolve_scans(scans) / room / "scan.json"
+    if twin_path.is_file() and not (scan_path.is_file() and scan_path.stat().st_mtime > twin_path.stat().st_mtime):
+        return json.loads(twin_path.read_text())
+    return compile_twin(scan_bundle.load_room(room, resolve_scans(scans)))
+
+
 def _sim_args(a):
     """Shared by sim and eval: (families, twin) or an error message."""
     try:
@@ -181,17 +194,10 @@ def _sim_args(a):
     if getattr(a, "base", "fixed") == "mobile" and getattr(a, "policy", "scripted") != "scripted":
         return ("--base mobile needs --policy scripted: the policy server wire format carries no base pose yet "
                 "(8-float arm only), so a served policy could not drive the base")
-    twin_path = Path(a.out) / "twins" / a.room / "twin.json"
-    if twin_path.is_file():
-        twin = json.loads(twin_path.read_text())
-    else:
-        from arrival.scan import bundle as scan_bundle
-        from arrival.twin.compile import compile_twin
-
-        try:
-            twin = compile_twin(scan_bundle.load_room(a.room, resolve_scans(a.scans)))
-        except FileNotFoundError:
-            return f"no scan for room {a.room!r} under {resolve_scans(a.scans)} and no twin in {a.out}/twins"
+    try:
+        twin = _load_twin(a.room, a.out, a.scans)
+    except FileNotFoundError:
+        return f"no scan for room {a.room!r} under {resolve_scans(a.scans)} and no twin in {a.out}/twins"
     return fams, twin
 
 
@@ -353,19 +359,12 @@ def cmd_research(a) -> int:
         print(f"Saved: {target}")
         return EXIT_OK
 
-    twin_path = Path(a.out) / "twins" / a.room / "twin.json"
-    if twin_path.is_file():
-        twin = json.loads(twin_path.read_text())
-    else:
-        from arrival.scan import bundle as scan_bundle
-        from arrival.twin.compile import compile_twin
-
-        try:
-            twin = compile_twin(scan_bundle.load_room(a.room, resolve_scans(a.scans)))
-        except FileNotFoundError:
-            print(f"no scan for room {a.room!r} under {resolve_scans(a.scans)} and no twin in {a.out}/twins",
-                  file=sys.stderr)
-            return EXIT_USAGE
+    try:
+        twin = _load_twin(a.room, a.out, a.scans)
+    except FileNotFoundError:
+        print(f"no scan for room {a.room!r} under {resolve_scans(a.scans)} and no twin in {a.out}/twins",
+              file=sys.stderr)
+        return EXIT_USAGE
 
     print(f"Researching appliances for room '{a.room}' via Tavily...")
     enriched = agent.enrich_twin(twin)
