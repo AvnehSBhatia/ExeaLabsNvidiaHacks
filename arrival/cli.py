@@ -462,6 +462,9 @@ def cmd_work(a) -> int:
         print(f"unknown families {bad} (choose from {', '.join(SIM_FAMILIES)})" if bad else "--episodes must be >= 1",
               file=sys.stderr)
         return EXIT_USAGE
+    if a.res < 16 or a.res % 16:  # the exporter's mp4 rule; any other size fails every job the worker claims
+        print("--res must be a positive multiple of 16", file=sys.stderr)
+        return EXIT_USAGE
     if a.retries is not None and a.retries < 0:
         print("--retries must be >= 0", file=sys.stderr)
         return EXIT_USAGE

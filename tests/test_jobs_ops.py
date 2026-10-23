@@ -151,6 +151,16 @@ def test_job_over_episode_or_people_ceiling_fails_and_worker_continues(tmp_path)
     assert st["status"] == "failed" and "people 3" in st["error"]
 
 
+@pytest.mark.parametrize("res", ["0", "100"])
+def test_work_cli_refuses_a_res_every_job_would_fail_on(tmp_path, res):
+    from arrival.cli import main
+
+    out = tmp_path / "out"
+    job = create_job(jobs_of(out), "k.json", data=b"not json")
+    assert main(["work", "--once", "--res", res, "--out", str(out)]) == 2
+    assert status_of(out, job)["status"] == "queued"
+
+
 def test_work_refuses_options_above_the_limits_before_touching_jobs(tmp_path):
     out = tmp_path / "out"
     job = create_job(jobs_of(out), "k.json", data=b"{}")
