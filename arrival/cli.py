@@ -294,11 +294,12 @@ def cmd_subset(a) -> int:
     """Keep the episodes of a sim dataset that pass a rule (family, drawer opening) as a new validated dataset."""
     from arrival.export.subset import SubsetError, subset_dataset
     from arrival.export.validate import validate
+    from arrival.jobs.shards import ShardError
 
     try:
         res = subset_dataset(a.src, a.out, families=[f for f in a.families.split(",") if f] if a.families else None,
                              min_drawer_opening=a.min_drawer_opening)
-    except SubsetError as e:
+    except (SubsetError, ShardError) as e:
         print(f"subset: {e}", file=sys.stderr)
         return EXIT_USAGE
     errors = validate(res["dataset"])

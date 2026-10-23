@@ -73,3 +73,11 @@ def test_rejects_invalid_drawer_threshold_before_reading_source(tmp_path, thresh
     with pytest.raises(SubsetError, match="min_drawer_opening"):
         subset_dataset(tmp_path / "missing", tmp_path / "out", min_drawer_opening=threshold)
     assert not (tmp_path / "out").exists()
+
+
+def test_cli_reports_a_folder_with_no_dataset_instead_of_a_traceback(tmp_path, capsys):
+    from arrival.cli import main
+
+    (tmp_path / "empty").mkdir()
+    assert main(["subset", str(tmp_path / "empty"), "--out", str(tmp_path / "out")]) == 2
+    assert "subset: " in capsys.readouterr().err
