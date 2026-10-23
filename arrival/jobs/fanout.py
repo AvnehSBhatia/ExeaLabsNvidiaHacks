@@ -40,6 +40,9 @@ class FanoutConfig:
     res: int = 128
     seed: int = 0
     scans: str = "scans"
+    dart: float = 0.0
+    base: str = "fixed"
+    exocentric: bool = False
 
     def __post_init__(self) -> None:
         # The run id becomes both a scratch-directory component and an object-storage prefix.
@@ -58,11 +61,24 @@ class FanoutConfig:
             raise ShardError("families must be comma-separated non-empty names")
         if not isinstance(self.scans, str) or not self.scans.strip():
             raise ShardError("scans must be a non-empty path")
+        if type(self.dart) not in (int, float) or not 0 <= self.dart < float("inf"):
+            raise ShardError("dart must be a finite number >= 0")
+        if self.base not in ("fixed", "mobile"):
+            raise ShardError("base must be fixed or mobile")
+        if type(self.exocentric) is not bool:
+            raise ShardError("exocentric must be true or false")
 
     def sim_args(self, i: int) -> list[str]:
-        return ["sim", "--room", self.room, "--families", self.families, "--episodes", str(self.episodes),
+        args = ["sim", "--room", self.room, "--families", self.families, "--episodes", str(self.episodes),
                 "--people", str(self.people), "--res", str(self.res), "--seed", str(self.seed),
                 "--scans", str(self.scans), "--shard", f"{i}/{self.shards}", "--resume"]
+        if self.dart:
+            args += ["--dart", str(self.dart)]
+        if self.base != "fixed":
+            args += ["--base", self.base]
+        if self.exocentric:
+            args.append("--exocentric")
+        return args
 
 
 class Backend(Protocol):

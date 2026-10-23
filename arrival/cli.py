@@ -263,7 +263,8 @@ def cmd_fanout(a) -> int:
     from arrival.jobs.fanout_status import StatusRecorder
     from arrival.jobs.shards import ShardError
 
-    cfg = FanoutConfig(a.run_id, a.shards, a.room, a.families, a.episodes, a.people, a.res, a.seed, a.scans)
+    cfg = FanoutConfig(a.run_id, a.shards, a.room, a.families, a.episodes, a.people, a.res, a.seed, a.scans,
+                       a.dart, a.base, a.exocentric)
     if a.backend == "nebius":
         from arrival.jobs.nebius import NebiusBackend, NebiusNotConfigured
 
@@ -620,6 +621,9 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--res", type=int, default=128)
     f.add_argument("--seed", type=int, default=0)
     f.add_argument("--scans", default="scans")
+    f.add_argument("--dart", type=float, default=0.0, metavar="RAD", help="as for sim: DART noise std in rad, 0 = off")
+    f.add_argument("--base", choices=["fixed", "mobile"], default="fixed", help="as for sim")
+    f.add_argument("--exocentric", action="store_true", help="as for sim: also export the external overview camera")
     f.add_argument("--out", default="out")
     f.set_defaults(fn=cmd_fanout)
     g = sub.add_parser("merge-shards", help="join sim --shard datasets into one validated LeRobot v2 dataset")

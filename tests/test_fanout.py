@@ -152,3 +152,30 @@ def test_local_backend_refuses_another_shards_output(tmp_path):
     with pytest.raises(ShardError, match="expected shard folder"):
         be.fetch_result(job, f"{CFG.run_id}/shards/0of2")
     assert be.list_objects(f"{CFG.run_id}/shards/0of2") == []
+
+
+def test_sim_options_reach_every_shard_command():
+    cfg = FanoutConfig("r1", 2, "hero_kitchen", "open_drawer", 2, 0, 32, 3, str(SCANS), 0.025, "mobile", True)
+    args = cfg.sim_args(1)
+    assert args[0] == "sim"
+    assert args[args.index("--dart") + 1] == "0.025"
+    assert args[args.index("--base") + 1] == "mobile"
+    assert "--exocentric" in args
+    plain = CFG.sim_args(0)
+    assert not {"--dart", "--base", "--exocentric"} & set(plain)  # defaults leave the command unchanged
+
+
+@pytest.mark.parametrize("patch,name", [({"dart": -0.1}, "dart"), ({"dart": float("nan")}, "dart"),
+                                        ({"base": "legs"}, "base"), ({"exocentric": 1}, "exocentric")])
+def test_bad_sim_options_are_refused(patch, name):
+    with pytest.raises(ShardError, match=name):
+        FanoutConfig(**{"run_id": "run", "shards": 2, **patch})
+
+
+@pytest.mark.render
+def test_dart_and_exocentric_shards_merge_into_a_valid_dataset(tmp_path):
+    cfg = FanoutConfig("r2", 2, "hero_kitchen", "open_drawer", 2, 0, 32, 3, str(SCANS), 0.02, "fixed", True)
+    res = run_fanout(LocalBackend(tmp_path / "store", tmp_path / "scratch"), cfg, tmp_path / "out", log=quiet)
+    assert validate(res["dataset"]) == []
+    assert res["info"]["total_episodes"] == 2
+    assert any("overview" in k for k in res["info"]["features"])
