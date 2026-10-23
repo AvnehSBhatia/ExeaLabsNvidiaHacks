@@ -108,7 +108,8 @@ def load_upload(path: Path, room_id: str) -> dict:
         bundle["room_id"] = room_id
         return bundle
     def posed(d: dict) -> bool:
-        return any(isinstance(x, dict) and "transform" in x for k in ("walls", "objects") for x in (d.get(k) or []))
+        return any(isinstance(x, dict) and "transform" in x for k in ("walls", "objects")
+                   for x in (d[k] if isinstance(d.get(k), list) else []))
 
     rooms = data.get("rooms")  # a CapturedStructure export nests the room dicts
     if posed(data) or (isinstance(rooms, list) and any(isinstance(r, dict) and posed(r) for r in rooms)):

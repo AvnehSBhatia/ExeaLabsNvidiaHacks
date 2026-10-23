@@ -45,6 +45,20 @@ def test_load_upload_detects_roomplan(tmp_path):
         load_upload(p, "x")
 
 
+@pytest.mark.parametrize("change", [{"walls": 1}, {"walls": -2.5}, {"walls": [], "objects": True}])
+def test_wrong_type_list_in_roomplan_fails_without_retry(tmp_path, change):
+    data = json.loads((REPO / "scans" / "hero_kitchen" / "roomplan.json").read_text(encoding="utf-8"))
+    data.update(change)
+    p = tmp_path / "upload.bin"
+    p.write_text(json.dumps(data))
+    with pytest.raises(ValueError):
+        load_upload(p, "x")
+    out = tmp_path / "out"
+    create_job(out / "jobs", "kitchen.json", data=json.dumps(data).encode())
+    st = run_once(out, log=QUIET)
+    assert st["status"] == "failed" and not st.get("retry_errors"), st
+
+
 def test_corrupt_upload_fails_and_worker_moves_on(tmp_path):
     out = tmp_path / "out"
     a = create_job(out / "jobs", "broken.json", data=b"this is not json")
