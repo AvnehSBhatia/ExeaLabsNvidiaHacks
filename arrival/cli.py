@@ -178,9 +178,6 @@ def _sim_args(a):
     bad = [f for f in fams if f not in SIM_FAMILIES]
     if bad or a.episodes < 1:
         return f"unknown families {bad} (choose from {', '.join(SIM_FAMILIES)})" if bad else "--episodes must be >= 1"
-    if getattr(a, "base", "fixed") == "mobile" and getattr(a, "policy", "scripted") != "scripted":
-        return ("--base mobile needs --policy scripted: the policy server wire format carries no base pose yet "
-                "(8-float arm only), so a served policy could not drive the base")
     twin_path = Path(a.out) / "twins" / a.room / "twin.json"
     if twin_path.is_file():
         twin = json.loads(twin_path.read_text())

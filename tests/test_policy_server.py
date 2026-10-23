@@ -218,6 +218,29 @@ def test_eval_vla_dead_server_takes_existing_failure_path(twin, monkeypatch, tmp
                      log=lambda *_: None)
 
 
+@pytest.mark.parametrize("cmd", ["sim", "eval"])
+def test_cli_mobile_base_is_driven_by_a_served_policy(monkeypatch, tmp_path, cmd):
+    """--base mobile --policy vla sends the 11-float state and the sim moves the base by the reply's action.base."""
+    from arrival.cli import main
+
+    seen = []
+
+    class Drive(MockPolicyServer):
+        def act(self, state):
+            seen.append(np.asarray(state, dtype=float))
+            chunk = super().act(state)
+            chunk[:, 8] += 0.02  # base x
+            return chunk
+
+    with Drive(chunk=4) as srv:
+        monkeypatch.setenv("GR00T_POLICY_URL", srv.url)
+        extra = ["--checkpoint-id", "test-mock"] if cmd == "eval" else []
+        assert main([cmd, "--families", "counter_to_counter", "--episodes", "1", "--people", "0", "--res", "32",
+                     "--base", "mobile", "--policy", "vla", "--out", str(tmp_path), *extra]) == 0
+    assert seen and all(s.shape == (11,) for s in seen)
+    assert seen[-1][8] > seen[0][8] + 0.1
+
+
 def test_cli_eval_vla_unset_exits_2(monkeypatch):
     from arrival.cli import main
     monkeypatch.delenv("GR00T_POLICY_URL", raising=False)

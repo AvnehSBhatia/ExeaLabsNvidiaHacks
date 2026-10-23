@@ -30,14 +30,3 @@ def test_sim_vla_not_configured_is_usage_error(tmp_path, capsys, monkeypatch):
     monkeypatch.chdir(tmp_path)  # resolve_scans falls back to the repo's scans/
     assert cli.cmd_sim(_ns(tmp_path, room="hero_kitchen", policy="vla")) == cli.EXIT_USAGE
     assert "policy vla" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize("cmd", ["cmd_sim", "cmd_eval"])
-def test_mobile_base_with_a_served_policy_is_a_usage_error(tmp_path, capsys, monkeypatch, cmd):
-    """The policy wire format is 8-float arm only (no base pose), so a served policy cannot drive the base."""
-    pytest.importorskip("mujoco")
-    monkeypatch.setenv("GR00T_POLICY_URL", "http://127.0.0.1:9")  # never contacted: refused before any run
-    monkeypatch.chdir(tmp_path)
-    ns = _ns(tmp_path, room="hero_kitchen", policy="vla", base="mobile")
-    assert getattr(cli, cmd)(ns) == cli.EXIT_USAGE
-    assert "--base mobile needs --policy scripted" in capsys.readouterr().err
