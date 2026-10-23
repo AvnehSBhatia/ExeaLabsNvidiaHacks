@@ -29,6 +29,7 @@ from pathlib import Path
 
 import numpy as np
 import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from arrival.render import sim_texture
@@ -127,6 +128,20 @@ def _stats(x: np.ndarray) -> dict:
             "std": x.std(0).tolist(), "count": [len(x)]}
 
 
+def list_column(col) -> np.ndarray:
+    """A list<number> or scalar parquet column as a (rows, width) float64 array, read from the Arrow buffers. Rows of
+    unequal width or null rows raise ValueError."""
+    arr = col.combine_chunks() if isinstance(col, pa.ChunkedArray) else col
+    if arr.null_count:
+        raise ValueError("column has null rows")
+    if pa.types.is_list(arr.type):
+        widths = pc.list_value_length(arr).to_numpy()
+        if len(widths) and (widths != widths[0]).any():
+            raise ValueError("column rows differ in width")
+        arr = arr.flatten()
+    return arr.to_numpy(zero_copy_only=False).astype(np.float64).reshape(len(col), -1)
+
+
 def dataset_stats(root: Path, ep_stats: list[dict], data_glob: str = "data/chunk-*/episode_*.parquet") -> dict:
     """stats.json: the per-episode stats merged, plus q01/q99 over every frame. GR00T's loader expects both
     quantiles and recomputes the whole file when they are missing; quantiles do not merge across episodes, so they
@@ -134,10 +149,10 @@ def dataset_stats(root: Path, ep_stats: list[dict], data_glob: str = "data/chunk
     stats = {k: _merge_stats([s["stats"][k] for s in ep_stats]) for k in ep_stats[0]["stats"]}
     tables = [pq.read_table(f) for f in sorted(Path(root).glob(data_glob))]
     for k, st in stats.items():
-        cols = [t.column(k).to_pylist() for t in tables if k in t.column_names]
+        cols = [list_column(t.column(k)) for t in tables if k in t.column_names and t.num_rows]
         if not cols:
             continue
-        x = np.asarray([v for c in cols for v in c], dtype=np.float64).reshape(-1, len(st["mean"]))
+        x = np.vstack(cols).reshape(-1, len(st["mean"]))
         q01, q99 = np.quantile(x, QUANTILES, axis=0)
         st.update({"q01": q01.tolist(), "q99": q99.tolist()})
     return stats

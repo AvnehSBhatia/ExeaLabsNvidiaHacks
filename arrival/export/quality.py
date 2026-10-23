@@ -29,7 +29,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from arrival.export.lerobot import _stats, dataset_stats
+from arrival.export.lerobot import _stats, dataset_stats, list_column
 
 LIMIT_FRAC = 0.03       # fraction of a joint's range counted as "at the limit"
 LIMIT_STEPS = 40        # consecutive steps at the limit before it is flagged (2 s at 20 fps)
@@ -166,8 +166,8 @@ def check_episodes(root: str | Path, frames: bool = False) -> dict:
             n = t.num_rows
             if n != e.get("length"):
                 flags.append(_flag("unreadable", f"{n} rows, episodes.jsonl length {e.get('length')}"))
-            state = np.array(t.column("observation.state").to_pylist(), dtype=np.float64).reshape(n, -1)
-            action = np.array(t.column("action").to_pylist(), dtype=np.float64).reshape(n, -1)
+            state = list_column(t.column("observation.state"))
+            action = list_column(t.column("action"))
             flags += check_trace(state, action, limits)
         except Exception as ex:  # noqa: BLE001 - a missing or corrupt parquet flags this episode only
             flags.append(_flag("unreadable", f"{path.relative_to(root)}: {type(ex).__name__}: {ex}"))
