@@ -314,7 +314,7 @@ Fine-tune GR00T N1.7 (next)                docs/REFERENCE.md#later-gr00t-fine-tu
 | `arrival/models/` | Nebius Token Factory (Nemotron) client |
 | `arrival/web/`, `arrival/jobs/` | Local web page and upload queue |
 | `scans/` | Sample rooms |
-| `tests/` | pytest suite. No network, runs in about 15 s |
+| `tests/` | pytest suite. No network, about 20 minutes on one core (CI splits it into three shards, `-n auto`) |
 | `docs/` | Reference, design contracts, access links, build log |
 
 ## Join in: team plan for 30 people

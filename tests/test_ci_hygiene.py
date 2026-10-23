@@ -342,3 +342,12 @@ def test_make_demo_is_the_quick_offline_demo():
     body = mk.split("\ndemo:", 1)[1].split("\n\n", 1)[0]
     assert "scripts/demo_all.py --quick" in body
     assert {"lint", "docs-check", "package-smoke"} <= set(re.findall(r"^([A-Za-z_][\w-]*):", mk, re.M))
+
+
+def test_every_test_file_has_a_shard_weight():
+    import conftest
+
+    weights = json.loads(conftest.SHARD_WEIGHTS.read_text(encoding="utf-8"))
+    files = {p.relative_to(REPO).as_posix() for p in (REPO / "tests").glob("test_*.py")}
+    assert sorted(files - set(weights)) == []
+    assert sorted(set(weights) - files) == []
