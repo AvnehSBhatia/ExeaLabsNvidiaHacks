@@ -250,6 +250,9 @@ def cmd_sim(a) -> int:
               f"{r['skipped_error']} errored; none written):", file=sys.stderr)
         for x in r["skip_reasons"][:5]:
             print(f"  {x.get('task_id') or x['family']}: {x['reason']}", file=sys.stderr)
+    if r["attempts"] == 0 and r["skipped_error"]:
+        print(f"sim: every task errored before the physics check, so {res['dataset']} has no episodes", file=sys.stderr)
+        return EXIT_INVALID
     if a.save_preview:
         print(f"preview: {Path(a.out) / 'previews'}")
     return EXIT_OK

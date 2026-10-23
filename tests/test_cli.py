@@ -41,3 +41,17 @@ def test_mobile_base_with_a_served_policy_is_a_usage_error(tmp_path, capsys, mon
     ns = _ns(tmp_path, room="hero_kitchen", policy="vla", base="mobile")
     assert getattr(cli, cmd)(ns) == cli.EXIT_USAGE
     assert "--base mobile needs --policy scripted" in capsys.readouterr().err
+
+
+def test_sim_exits_1_when_every_task_errors(tmp_path, capsys, monkeypatch):
+    """A renderer that cannot start fails every task at build; that run must not exit 0 with an empty dataset."""
+    pytest.importorskip("mujoco")
+    import arrival.sim.collect as collect
+
+    def broken(*a, **k):
+        raise RuntimeError("gladLoadGL error")
+
+    monkeypatch.setattr(collect, "SimEnv", broken)
+    monkeypatch.chdir(tmp_path)  # resolve_scans falls back to the repo's scans/
+    assert cli.cmd_sim(_ns(tmp_path, room="hero_kitchen")) == cli.EXIT_INVALID
+    assert "every task errored" in capsys.readouterr().err
