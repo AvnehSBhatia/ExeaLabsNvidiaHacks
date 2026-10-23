@@ -41,3 +41,12 @@ def test_mobile_base_with_a_served_policy_is_a_usage_error(tmp_path, capsys, mon
     ns = _ns(tmp_path, room="hero_kitchen", policy="vla", base="mobile")
     assert getattr(cli, cmd)(ns) == cli.EXIT_USAGE
     assert "--base mobile needs --policy scripted" in capsys.readouterr().err
+
+
+def test_fanout_reports_invalid_merged_dataset(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr("arrival.jobs.fanout.run_fanout",
+                        lambda rec, cfg, out: {"dataset": str(tmp_path / "ds"), "ran": [0], "skipped": []})
+    monkeypatch.setattr("arrival.export.validate.validate", lambda d: ["meta/info.json: missing"])
+    a = _ns(tmp_path, backend="local", run_id="r", shards=1)
+    assert cli.cmd_fanout(a) == cli.EXIT_INVALID
+    assert "INVALID: meta/info.json: missing" in capsys.readouterr().err

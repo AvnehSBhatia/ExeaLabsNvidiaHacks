@@ -286,8 +286,10 @@ def cmd_fanout(a) -> int:
             if left:
                 print(f"fanout: could not cancel Nebius jobs {left}; cancel them by hand", file=sys.stderr)
     problems = validate(res["dataset"])
+    for p in problems:
+        print(f"INVALID: {p}", file=sys.stderr)
     print(f"dataset: {res['dataset']} (ran shards {res['ran']}, skipped {res['skipped']})")
-    return EXIT_OK if not problems else EXIT_USAGE
+    return EXIT_INVALID if problems else EXIT_OK
 
 
 def cmd_subset(a) -> int:
