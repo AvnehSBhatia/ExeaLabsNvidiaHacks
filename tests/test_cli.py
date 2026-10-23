@@ -19,6 +19,19 @@ def test_sim_missing_room_is_usage_error(tmp_path, capsys):
     assert "no scan for room" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("flag", ["--people", "--seed"])
+def test_sim_negative_people_or_seed_is_a_usage_error_and_keeps_the_old_dataset(tmp_path, capsys, monkeypatch, flag):
+    pytest.importorskip("mujoco")
+    monkeypatch.chdir(tmp_path)  # resolve_scans falls back to the repo's scans/
+    old = tmp_path / "datasets" / "hero_kitchen_sim" / "meta" / "info.json"
+    old.parent.mkdir(parents=True)
+    old.write_text("{}")
+    assert cli.main(["sim", flag, "-1", "--episodes", "1", "--families", "open_drawer",
+                     "--out", str(tmp_path)]) == cli.EXIT_USAGE
+    assert f"{flag} must be >= 0" in capsys.readouterr().err
+    assert old.is_file()
+
+
 def test_research_missing_room_is_usage_error(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr("arrival.tasks.tavily_research.TavilyResearchAgent", lambda *a, **k: object())
     assert cli.cmd_research(_ns(tmp_path)) == cli.EXIT_USAGE

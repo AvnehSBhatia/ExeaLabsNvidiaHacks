@@ -168,6 +168,8 @@ def _sim_args(a):
         return "mujoco is not installed: pip install -e '.[sim]'"
     from arrival.sim.tasks import SIM_FAMILIES
 
+    if getattr(a, "people", None) is not None and a.people < 0:  # before the writer clears the old dataset
+        return "--people must be >= 0"
     if getattr(a, "arm", "procedural") == "menagerie":
         from arrival.sim import menagerie
 
@@ -202,6 +204,9 @@ def cmd_sim(a) -> int:
         print(args, file=sys.stderr)
         return EXIT_USAGE
     fams, twin = args
+    if a.seed < 0:  # numpy refuses it in every task, after the writer has cleared the old dataset
+        print("--seed must be >= 0", file=sys.stderr)
+        return EXIT_USAGE
     from arrival.jobs.shards import ShardError, parse_shard
 
     try:
