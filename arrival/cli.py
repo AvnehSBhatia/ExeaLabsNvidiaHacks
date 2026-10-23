@@ -482,8 +482,8 @@ def cmd_gc(a) -> int:
     """Delete finished jobs (upload, twin, dataset, zip) older than --max-age-hours."""
     from arrival.jobs.retention import gc
 
-    if a.max_age_hours <= 0:
-        print("--max-age-hours must be > 0", file=sys.stderr)
+    if not 0 < a.max_age_hours < float("inf"):  # NaN fails it too; gc() raises on any of these
+        print("--max-age-hours must be a finite number > 0", file=sys.stderr)
         return EXIT_USAGE
     res = gc(Path(a.out), a.max_age_hours, dry_run=a.dry_run)
     verb = "would remove" if a.dry_run else "removed"

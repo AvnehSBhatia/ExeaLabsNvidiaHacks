@@ -698,6 +698,17 @@ def test_gc_cli_dry_run_and_delete(tmp_path, capsys):
     assert main(["gc", "--max-age-hours", "0", "--out", str(out)]) == 2
 
 
+def test_gc_cli_refuses_nan_and_inf_as_usage_errors(tmp_path, capsys):
+    from arrival.cli import main
+
+    out = tmp_path / "out"
+    job, _ = _finished_job(out, "old", 100)
+    for value in ("nan", "inf", "-1"):
+        assert main(["gc", "--max-age-hours", value, "--out", str(out)]) == 2
+        assert "--max-age-hours must be a finite number > 0" in capsys.readouterr().err
+    assert (jobs_of(out) / job["id"]).exists()
+
+
 def test_work_sweeps_old_jobs_when_retention_is_set(tmp_path):
     out = tmp_path / "out"
     old, _ = _finished_job(out, "old", 100)
