@@ -754,6 +754,10 @@ def _bad_axes(m, root):
     m["axes"]["camera"] = "opengl"
 
 
+def _list_depth_unit(m, root):
+    m["depth_unit"] = ["m"]
+
+
 @pytest.mark.parametrize("mutate,code", [
     (_same_times, "non_monotonic_timestamps"), (_drop_file, "missing_file"), (_wrong_rgb_size, "bad_size"),
     (_corrupt_rgb, "bad_image"), (_wrong_depth_shape, "depth_shape"),
@@ -766,7 +770,7 @@ def _bad_axes(m, root):
 
     (_corrupt_rgb, "bad_image"), (_wrong_depth_shape, "depth_shape"), (_pickled_depth, "bad_depth"),
     (_invalid_confidence_level, "bad_confidence"), (_invalid_confidence_mode, "bad_confidence"),
-    (_bad_axes, "axis_convention"),
+    (_bad_axes, "axis_convention"), (_list_depth_unit, "depth_unit"),
 ])
 def test_bad_frames_bundle_is_rejected_and_nothing_is_queued(make, tmp_path, mutate, code):
     srv, out = make(rate_limit=0)

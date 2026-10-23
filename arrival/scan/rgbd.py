@@ -107,7 +107,7 @@ def load_manifest(directory) -> Manifest:
     if axes.get("camera") != CAMERA_AXES or axes.get("room") != ROOM_AXES:
         _fail("axis_convention", f"axes must be camera={CAMERA_AXES!r} room={ROOM_AXES!r}, got {axes}")
     unit = raw.get("depth_unit")
-    if unit not in DEPTH_UNITS:
+    if not isinstance(unit, str) or unit not in DEPTH_UNITS:
         _fail("depth_unit", f"depth_unit must be one of {sorted(DEPTH_UNITS)}, got {unit!r}")
     rgb_size = _size(raw.get("rgb_size"), "rgb_size")
     depth_size = _size(raw.get("depth_size"), "depth_size")
