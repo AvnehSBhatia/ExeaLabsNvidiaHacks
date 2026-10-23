@@ -149,7 +149,8 @@ def link_check(dest: Path) -> list[str]:
 def export_site(out_dir: str | Path = "out", scans_dir: str | Path = "scans", dest: str | Path = "out/static_site",
                 zips: bool = False, log=print) -> dict:
     """Crawl the local page and write the static copy at ``dest`` (replaced if it exists). Returns a summary dict;
-    raises ExportError when the crawl fails or the link check finds a broken link."""
+    raises ExportError when ``dest`` is a non-empty folder that is not an earlier export, when the crawl fails, or
+    when the link check finds a broken link."""
     out_dir, scans_dir, dest = Path(out_dir), Path(scans_dir), Path(dest)
     dest_res = dest.resolve()
     out_res = out_dir.resolve()
@@ -162,6 +163,8 @@ def export_site(out_dir: str | Path = "out", scans_dir: str | Path = "scans", de
         raise ExportError(f"refusing to export to ancestor directory {dest}")
     if dest.is_file():
         raise ExportError(f"refusing to export over existing file {dest}")
+    if dest.is_dir() and any(dest.iterdir()) and not (dest / "data" / "index.json").is_file():
+        raise ExportError(f"refusing to replace {dest}: it is not empty and not an earlier export (no data/index.json)")
 
     server = make_server("127.0.0.1", 0, out_dir, scans_dir)
     threading.Thread(target=server.serve_forever, daemon=True).start()

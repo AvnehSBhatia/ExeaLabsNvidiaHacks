@@ -103,12 +103,29 @@ def test_link_check_finds_broken_links(tmp_path):
 
 def test_export_replaces_an_old_export_and_refuses_dangerous_dest(out, tmp_path):
     dest = tmp_path / "site"
-    dest.mkdir()
+    export_site(out, REPO / "scans", dest, log=lambda *_: None)
     (dest / "stale.txt").write_text("old")
     export_site(out, REPO / "scans", dest, log=lambda *_: None)
     assert not (dest / "stale.txt").exists() and (dest / "index.html").is_file()
     with pytest.raises(ExportError, match="refusing to export over"):
         export_site(out, REPO / "scans", out, log=lambda *_: None)
+
+
+def test_export_refuses_a_folder_that_is_not_an_earlier_export(out, tmp_path):
+    datasets = out / "datasets"
+    with pytest.raises(ExportError, match="not an earlier export"):
+        export_site(out, REPO / "scans", datasets, log=lambda *_: None)
+    assert (datasets / "hero_kitchen_sim" / "meta" / "info.json").is_file()
+    assert not (out / "datasets.tmp").exists()
+    mine = tmp_path / "docs"
+    mine.mkdir()
+    (mine / "notes.md").write_text("keep me")
+    assert cli.main(["export-site", "--out", str(out), "--scans", str(REPO / "scans"), "--dest", str(mine)]) == 1
+    assert (mine / "notes.md").read_text() == "keep me"
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    export_site(out, REPO / "scans", empty, log=lambda *_: None)
+    assert (empty / "index.html").is_file()
 
 
 def test_export_refuses_file_dest(out, tmp_path):
