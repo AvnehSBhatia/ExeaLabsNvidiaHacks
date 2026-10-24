@@ -27,6 +27,14 @@ def test_resolve_room_by_name_and_by_path():
         summary.resolve_room("nope.json", SCANS)
 
 
+
+def test_generic_scan_file_names_take_the_folder_name():
+    # two rooms given as scan.json files were both "scan", and their datasets shared scan_sim
+    a = summary.resolve_room("tests/fixtures/scans/rotated_kitchen/scan.json", SCANS)
+    b = summary.resolve_room("tests/fixtures/scans/u_kitchen_42/scan.json", SCANS)
+    assert (a[0], b[0]) == ("rotated_kitchen", "u_kitchen_42")
+
+
 def test_missing_room_is_a_failed_cell_not_a_crash(tmp_path):
     row = summary.run_room("no_such_room", tmp_path, SCANS)
     assert statuses(row) == {"normalize": "failed", **dict.fromkeys(summary.STAGES[1:], "not_run")}
