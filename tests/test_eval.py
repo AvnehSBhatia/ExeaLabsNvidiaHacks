@@ -13,6 +13,7 @@ from arrival.sim.collect import SimEnv, collect, run_episode  # noqa: E402
 from arrival.sim.people import CLEAR, LANE, Walkers  # noqa: E402
 from arrival.sim.policy import ScriptedExpert, VLANotConfigured  # noqa: E402
 from arrival.twin.compile import compile_twin  # noqa: E402
+from conftest import REPO  # noqa: E402
 
 SINK_TASK = {"family": "counter_to_sink", "object_id": "mug_1", "object_label": "mug", "source": "counter_a",
              "target": "sink_1", "target_x": 1.6, "start": [1.0, 0.35, 0.97], "lighting": "neutral",
@@ -29,6 +30,16 @@ def test_wilson_known_value():
     assert abs(lo - 0.490) < 5e-4 and abs(hi - 0.943) < 5e-4
     assert wilson(0, 0) == [0.0, 1.0]
     assert wilson(5, 5)[1] == 1.0 and wilson(0, 5)[0] == 0.0
+
+
+def test_eval_doc_quotes_wilson_widths():
+    text = (REPO / "docs" / "07-eval.md").read_text(encoding="utf-8")
+    for n in (4, 50):
+        widths = [hi - lo for lo, hi in (wilson(k, n) for k in range(n + 1))]
+        assert f"{min(widths):.2f} to {max(widths):.2f} wide" in text
+    lo, hi = wilson(190, 381)
+    assert hi - lo <= 0.1 < wilson(190, 380)[1] - wilson(190, 380)[0]
+    assert "about 380 episodes" in text
 
 
 def test_scripted_eval_shape(twin, tmp_path):
