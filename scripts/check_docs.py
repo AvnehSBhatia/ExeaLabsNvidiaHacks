@@ -3,6 +3,7 @@
     python scripts/check_docs.py [--root DIR]
 
 Reads README.md, docs/REFERENCE.md and ios/README.md under the root and prints one line per problem.
+The counts in site/data/todo.json, which the README to-do and the demo site show, must match its item statuses.
 Exit 0 when clean, 1 when anything is wrong. Nothing is executed: commands are only parsed with the
 parser that arrival.cli.main() builds.
 """
@@ -11,6 +12,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import json
 import re
 import shlex
 import sys
@@ -180,6 +182,18 @@ def check_labels(doc: Path, root: Path, text: str, consts: dict[tuple[str, str],
     return probs
 
 
+def check_todo_counts(root: Path) -> list[str]:
+    path = root / "site" / "data" / "todo.json"
+    if not path.exists():
+        return []
+    todo = json.loads(path.read_text(encoding="utf-8"))
+    items = [it for g in todo["groups"] for it in g["items"]]
+    want = {k: sum(it["status"] == k for it in items) for k in ("done", "review", "todo", "blocked")}
+    want["total"] = len(items)
+    return [f"site/data/todo.json: counts.{k} is {todo['counts'].get(k)}, the items give {n}"
+            for k, n in want.items() if todo["counts"].get(k) != n]
+
+
 def check(root: Path = REPO) -> list[str]:
     parser = _cli_parser()
     tests = test_defs(root)
@@ -198,7 +212,7 @@ def check(root: Path = REPO) -> list[str]:
         probs += check_paths(root, doc, text, tests)
         probs += check_status_lists(doc, root, text)
         probs += check_labels(doc, root, text, consts)
-    return probs
+    return probs + check_todo_counts(root)
 
 
 def main(argv: list[str] | None = None) -> int:

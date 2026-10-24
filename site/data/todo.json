@@ -3,8 +3,8 @@
  "repo": "AvnehSBhatia/ExeaLabsNvidiaHacks",
  "source": "README to-do, refreshed after #194 landed the integration on main and #193, #195, #196, #197 and #198 were merged into feat/more-prs-2. Submission fields checked against https://nebiusglobalaihackathon.devpost.com/ and the official rules.",
  "counts": {
-  "done": 55,
-  "review": 3,
+  "done": 57,
+  "review": 1,
   "todo": 0,
   "blocked": 16,
   "total": 74
