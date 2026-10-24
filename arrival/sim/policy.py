@@ -49,6 +49,8 @@ FRIDGE_PUSH_ROLL = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
 # for the push, so the hand is narrow along the panel and its far finger stays off the edge
 FRIDGE_PULL_STEPS = 10  # control steps per quarter of the hooked pull and per sixth of the push
 FRIDGE_SETTLE_STEPS = 6  # held after sliding off the bar, so the door has stopped when its angle is read
+FRIDGE_SETTLE_IN = 0.04  # m the hand eases back toward the hinge for that hold: held where it slid off, joint 4
+# sat at its stop for 43 steps and the quality check (40) flagged every open_fridge episode
 FRIDGE_REPLAN_IK = 0.02  # m: the push is re-planned only when the planned hook is reachable; past this (the
 # U kitchen's side-wall fridge plans 1.70 m) re-planning made the flailing arm fling the door open and count a success
 DOOR_SWITCH = np.radians(40)  # close_door: door angle where the push from the side hands over to the push from in front
@@ -268,7 +270,8 @@ class ScriptedExpert(Policy):
             r = np.linalg.norm((h - hinge)[:2])
             a0 = np.arctan2(*(h - hinge)[[1, 0]])
             m = fridge_mirror(env.fx[task["fixture"]])  # -1: right-hinged, the whole plan is the mirror image
-            qa = lambda q: (np.pi if m < 0 else 0.0) + m * q  # heading of the panel at door angle q
+            yaw = env.fx[task["fixture"]].get("yaw", 0.0)  # a fridge on a side wall turns the whole plan with it
+            qa = lambda q: yaw + (np.pi if m < 0 else 0.0) + m * q  # world heading of the panel at door angle q
             s, up = self.seg_steps, np.array([0, 0, 1.0])
 
             def along(a):  # from the hinge toward the free edge, panel heading a
@@ -297,7 +300,9 @@ class ScriptedExpert(Policy):
                 out.append((pt(a), ori(a), c, FRIDGE_PULL_STEPS, k < 4))
             a, q1 = a0 + m * FRIDGE_HOOK, FRIDGE_HOOK
             off = pt(a) + FRIDGE_CLEAR * along(a)
-            out += [(off, ori(a), c, s), (off, ori(a), c, FRIDGE_SETTLE_STEPS)]
+            back = hinge - off
+            back[2] = 0.0
+            out += [(off, ori(a), c, s), (off + FRIDGE_SETTLE_IN * back / np.linalg.norm(back), ori(a), c, FRIDGE_SETTLE_STEPS)]
 
             def rest(q1):
                 # Round the free edge to the inside face and push on, planned for the door at q1. Sliding off the
