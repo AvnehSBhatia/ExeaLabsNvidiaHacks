@@ -554,7 +554,8 @@ class Walkers:
         return -np.pi / 2 + self.work_yaw  # face the counter while stopped
 
     def step(self, model, data, dt: float, clearance=None) -> list[list[float]]:
-        """`clearance(xy, radius)` is the walker's clearance to the robot hand or base (safety.yield_clearance). A
+        """`clearance(xy, radius)` is the walker's clearance to the closest of the robot base and arm-link
+        bodies (safety.yield_clearance). A
         walker slows with it and stands still below safety.YIELD[0], then resumes; at a pause (the counter stop)
         the timer is held while the robot is that close. None: nobody yields, as before."""
         if self._gids is None:

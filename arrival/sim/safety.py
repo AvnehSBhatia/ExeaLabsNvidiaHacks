@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import numpy as np
 
-YIELD = (0.25, 0.50)  # walkers: clearance (m) to the robot hand or base at which they stand still, and above which they walk freely
-YIELD_BODIES = ("robot_base", "hand", "finger_l", "finger_r")
+YIELD = (0.25, 0.50)  # walkers: clearance (m) to the closest robot body at which they stand still, and above which they walk freely
 ROBOT_BODIES = ("robot_base",) + tuple(f"link{i}" for i in range(1, 8)) + ("hand", "finger_l", "finger_r")
+YIELD_BODIES = ROBOT_BODIES
+MOBILE_YIELD_BODIES = ("robot_base", "hand", "finger_l", "finger_r")
 
 
 def _seg_point_dist(a: np.ndarray, b: np.ndarray, p: np.ndarray) -> float:
@@ -24,7 +25,7 @@ def _seg_point_dist(a: np.ndarray, b: np.ndarray, p: np.ndarray) -> float:
 
 
 def yield_factor(clearance: float) -> float:
-    """Walking speed share for a person `clearance` metres from the hand or base: 0 at YIELD[0] or less, 1 at YIELD[1] or more."""
+    """Walking speed share for a person `clearance` metres from the closest of the base and arm-link bodies: 0 at YIELD[0] or less, 1 at YIELD[1] or more."""
     return float(np.clip((clearance - YIELD[0]) / (YIELD[1] - YIELD[0]), 0.0, 1.0))
 
 
@@ -40,7 +41,9 @@ class SafetyMonitor:
                        if model.geom_type[g] == mujoco.mjtGeom.mjGEOM_BOX else float(model.geom_size[g][0])
                        for g in self.geoms}
         self.half = {g: float(model.geom_size[g][1]) for g in self.geoms}
-        yb = {model.body(n).id for n in YIELD_BODIES}
+        is_mobile = any(model.joint(j).name == "base_x" for j in range(model.njnt))
+        bodies = MOBILE_YIELD_BODIES if is_mobile else YIELD_BODIES
+        yb = {model.body(n).id for n in bodies}
         self.yield_geoms = [g for g in self.geoms if model.geom_bodyid[g] in yb]
         self.people = []
         self.person_geoms = set()
@@ -96,7 +99,7 @@ class SafetyMonitor:
         return d
 
     def yield_clearance(self, data):
-        """Callable (xy, radius) -> clearance to the robot hand, fingers and base, for Walkers.step to yield on."""
+        """Callable (xy, radius) -> clearance to the closest of the base, arm links, hand and fingers, for Walkers.step to yield on."""
         return lambda p, r: self.clearance(data, p, r, self.yield_geoms)
 
     def update(self, model, data, driven=()) -> None:

@@ -730,7 +730,7 @@
      "size": "M",
      "priority": "nice",
      "issue": 24,
-     "note": "On feat/demo-site with no pull request yet. Walkers also keep out of the door hinge disc (open_door 8 of 8 on seeds 0 to 3, was 7 of 8 on one), and fridges can be right-hinged with hinge: \"right\". Yield ignores the arm links. The hero fridge with a right hinge is rejected by the pre-flight because its free edge is in the corner.",
+     "note": "On feat/demo-site with no pull request yet. Walkers also keep out of the door hinge disc (open_door 8 of 8 on seeds 0 to 3, was 7 of 8 on one), and fridges can be right-hinged with hinge: \"right\". Yield uses the closest of the base and the arm-link bodies. The hero fridge with a right hinge is rejected by the pre-flight because its free edge is in the corner.",
      "authors": [
       "AvnehSBhatia",
       "Claude Code"
