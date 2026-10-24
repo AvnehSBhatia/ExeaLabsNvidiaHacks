@@ -272,6 +272,7 @@ python -m arrival demo --episodes 1000                         # fast scripted p
 python -m arrival demo --room hero_kitchen --from-roomplan     # build from a RoomPlan JSON export
 python -m arrival sim --families all                           # include the not-yet-working tasks
 python -m arrival eval --episodes 4 --people 2                 # score a policy closed-loop, no dataset written
+python -m arrival cost                                         # time and cost report vs P3 teleoperation baseline
 ```
 
 Each evaluation writes a new `out/eval/<run_id>/` with `manifest.json`, `episodes.jsonl` and `report.json`. Replay the printed manifest with `--manifest PATH --policy vla --checkpoint-id LABEL` to compare checkpoints on the same twin and ordered trials. The checkpoint label is supplied by the caller; it is not verified against the server. See [the evaluation protocol](docs/07-eval.md).

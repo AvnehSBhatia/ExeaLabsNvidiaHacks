@@ -142,9 +142,9 @@ def collect_rows(out_dir: str | Path) -> list[dict]:
         rows.append(_row("report", room, None, r.get("attempts"), r.get("successes"), r.get("seconds"),
                          r.get("human_contacts")))
         fams = r.get("families")
-        if isinstance(fams, dict):  # sim reports: per-family counts, no per-family seconds
+        if isinstance(fams, dict):  # sim reports: per-family counts, with optional per-family seconds
             for fam, f in fams.items():
-                rows.append(_row("report", room, fam, f.get("attempts"), f.get("successes"), None, f.get("human_contacts")))
+                rows.append(_row("report", room, fam, f.get("attempts"), f.get("successes"), f.get("seconds"), f.get("human_contacts")))
     for p in sorted(list((out / "eval").glob("*.json")) + list((out / "eval").glob("*/report.json"))):
         r = _load(p, "report")
         if not isinstance(r.get("totals"), dict) or not isinstance(r.get("families"), dict):
@@ -260,8 +260,11 @@ def compare(rows: list[dict], dol: dict, tele: dict | None, usage_scope: dict | 
 
 def build(out_dir, usage_path=None, pricing_path="configs/pricing.example.yaml", baseline_path=None) -> dict:
     out = Path(out_dir)
+    repo = Path(__file__).resolve().parents[2]
     if baseline_path is None and (out / "teleop_baseline.json").exists():
         baseline_path = out / "teleop_baseline.json"
+    if pricing_path and not Path(pricing_path).exists() and (repo / pricing_path).exists():
+        pricing_path = repo / pricing_path
     tele = teleop_block(load_baseline(baseline_path)) if baseline_path else None
     usage = load_usage(usage_path) if usage_path else None
     pricing = load_pricing(pricing_path) if usage else None
@@ -322,8 +325,14 @@ def main(argv=None) -> int:
     ap.add_argument("--baseline", help="teleop_baseline.json (default: <out>/teleop_baseline.json if present)")
     ap.add_argument("--json", action="store_true", help="print the report as JSON instead of a table")
     a = ap.parse_args(argv)
+    baseline_path = a.baseline
+    if baseline_path is None and not (Path(a.out) / "teleop_baseline.json").exists():
+        repo = Path(__file__).resolve().parents[2]
+        p3 = repo / "docs" / "results" / "p3-teleop-2026-10-21" / "teleop_baseline.json"
+        if p3.exists():
+            baseline_path = p3
     try:
-        rep = build(a.out, a.usage, a.pricing, a.baseline)
+        rep = build(a.out, a.usage, a.pricing, baseline_path)
     except CostError as e:
         print(f"error: {e}")
         return 2

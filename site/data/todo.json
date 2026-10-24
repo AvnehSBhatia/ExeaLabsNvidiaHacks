@@ -990,7 +990,10 @@
      "size": "S",
      "priority": "should",
      "issue": 67,
-     "authors": []
+     "authors": [
+      "amanx98"
+     ],
+     "note": "Added arrival cost CLI subcommand with automated P3 teleop baseline comparison. Cloud dollar cost per demo and full C3 comparison remains to be measured with real usage."
     },
     {
      "id": "C4",

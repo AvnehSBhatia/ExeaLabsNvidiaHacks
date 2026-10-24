@@ -41,3 +41,12 @@ def test_mobile_base_with_a_served_policy_is_a_usage_error(tmp_path, capsys, mon
     ns = _ns(tmp_path, room="hero_kitchen", policy="vla", base="mobile")
     assert getattr(cli, cmd)(ns) == cli.EXIT_USAGE
     assert "--base mobile needs --policy scripted" in capsys.readouterr().err
+
+def test_cost_cli_runs_and_reports(tmp_path, capsys):
+    parser = cli.build_parser()
+    args = parser.parse_args(["cost", "--out", str(tmp_path)])
+    rc = cli.cmd_cost(args)
+    assert rc == cli.EXIT_OK
+    out = capsys.readouterr().out
+    assert "| source | room | family |" in out
+    assert "| dollars | usd | measured | note |" in out

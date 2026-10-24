@@ -1,4 +1,4 @@
-"""python -m arrival demo | validate | serve | sim | merge-shards | subset | eval | realism | work | gc | doctor | summary | export-site"""
+"""python -m arrival demo | validate | serve | sim | merge-shards | subset | eval | realism | work | gc | doctor | summary | export-site | cost"""
 
 from __future__ import annotations
 
@@ -532,6 +532,23 @@ def cmd_export_site(a) -> int:
     return EXIT_OK
 
 
+def cmd_cost(a) -> int:
+    """Time and cost report computed from local runs and teleop baseline."""
+    from arrival.eval import cost
+
+    argv = ["--out", str(a.out)]
+    if a.usage:
+        argv.extend(["--usage", str(a.usage)])
+    if a.pricing:
+        argv.extend(["--pricing", str(a.pricing)])
+    if a.baseline:
+        argv.extend(["--baseline", str(a.baseline)])
+    if a.json:
+        argv.append("--json")
+    rc = cost.main(argv)
+    return EXIT_OK if rc == 0 else EXIT_USAGE
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="arrival", description="Arrival: room scan -> GR00T LeRobot v2 dataset")
     sub = p.add_subparsers(dest="cmd")
@@ -719,6 +736,13 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--dest", default="out/static_site", help="folder to write (replaced if it exists)")
     x.add_argument("--zips", action="store_true", help="also include each dataset as a downloadable zip (can be large)")
     x.set_defaults(fn=cmd_export_site)
+    c = sub.add_parser("cost", help="time and cost report vs teleop baseline (markdown + json)")
+    c.add_argument("--out", default="out", help="folder with reports/, eval/, jobs/ and usage/")
+    c.add_argument("--usage", default=None, help="usage.json: {product: units consumed}")
+    c.add_argument("--pricing", default=None, help="pricing YAML (default: configs/pricing.example.yaml)")
+    c.add_argument("--baseline", default=None, help="teleop_baseline.json (default: docs/results/p3-teleop-2026-10-21/)")
+    c.add_argument("--json", action="store_true", help="print the report as JSON instead of markdown")
+    c.set_defaults(fn=cmd_cost)
     return p
 
 
