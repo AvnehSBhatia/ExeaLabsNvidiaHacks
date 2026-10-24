@@ -754,6 +754,34 @@ def arm_parts(arm: str, base_pos, base_yaw_deg: float, mobile: bool = False) -> 
     raise ValueError(f"unknown arm {arm!r} (procedural or menagerie)")
 
 
+OVERVIEW_BACK = 2.4  # m the overview camera stands behind the robot (a north-wall run keeps its old camera)
+
+
+def overview_camera_xml(xs, ys, base_pos, base_yaw_deg: float, fixtures=()) -> str:
+    """The overview camera 2.2 m up, behind the robot and looking where it faces, tilted down (forward 0.8, down
+    0.6): OVERVIEW_BACK behind the base, pulled in to stay 0.2 m inside the walls and clear of every fixture
+    footprint (a cabinet behind the robot would fill the frame). A robot facing -y (every north-wall run, the hero
+    kitchen) keeps the original camera line byte for byte; a run on another wall used to film empty floor."""
+    fx, fy = math.cos(math.radians(base_yaw_deg)), math.sin(math.radians(base_yaw_deg))
+    if abs(fx) < 1e-9 and fy < 0:
+        return f'<camera name="overview" pos="{(min(xs) + max(xs)) / 2} {max(ys) - 0.1} 2.2" xyaxes="-1 0 0 0 -0.6 0.8" fovy="80"/>'
+    lo, hi = (min(xs) + 0.2, min(ys) + 0.2), (max(xs) - 0.2, max(ys) - 0.2)
+
+    def clear(x, y):
+        inside = lo[0] <= x <= hi[0] and lo[1] <= y <= hi[1]
+        return inside and all(not (abs(lx) < f["size"][0] / 2 + 0.15 and abs(ly) < f["size"][1] / 2 + 0.15)
+                              for f in fixtures for lx, ly in [to_local((x, y), f)])
+
+    d = OVERVIEW_BACK
+    while d > 0.6 and not clear(base_pos[0] - fx * d, base_pos[1] - fy * d):
+        d -= 0.1
+    x, y = base_pos[0] - fx * d, base_pos[1] - fy * d
+    xa = (fy, -fx, 0.0)  # forward x up, normalised: horizontal, to the right of the view
+    ya = (0.6 * fx, 0.6 * fy, 0.8)  # xa x forward, with forward = (0.8 fx, 0.8 fy, -0.6)
+    axes = " ".join(f"{v:.4f}" for v in (*xa, *ya))
+    return f'<camera name="overview" pos="{x:.4f} {y:.4f} 2.2" xyaxes="{axes}" fovy="80"/>'
+
+
 def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: dict | None = None,
                lighting: str = "neutral", n_people: int = 0, seed: int | None = None, people_seed: int = 0,
                base: str = "fixed", arm: str = "procedural") -> str:
@@ -815,7 +843,7 @@ def build_mjcf(twin: dict, base_pos, base_yaw_deg: float = -90.0, object_pos: di
 <worldbody>
 {lights}
 <geom name="floor" type="plane" pos="{cx} {cy} 0" size="{max(xs)} {max(ys)} 0.1" material="floor"/>
-<camera name="overview" pos="{cx} {max(ys) - 0.1} 2.2" xyaxes="-1 0 0 0 -0.6 0.8" fovy="80"/>
+{overview_camera_xml(xs, ys, base_pos, base_yaw_deg, twin["fixtures"])}
 {body}
 </worldbody>{a['contact']}
 <actuator>{a['actuators']}</actuator>

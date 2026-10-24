@@ -292,3 +292,21 @@ def test_spatula_is_pinched_with_the_pads_off_the_counter(twin, family, replaces
         assert top > 0.2  # carried, not pushed
     else:
         assert detail["wiped_m"] > 1.0  # it followed the hand through all four strokes
+
+
+def test_overview_camera_stands_behind_a_robot_on_any_wall():
+    # a run on another wall used to keep the north-wall camera and film the empty floor behind the robot
+    rotated = compile_twin(load_room("rotated_kitchen", "tests/fixtures/scans"))
+    xs = [p for w in rotated["walls"] for p in (w["start"][0], w["end"][0])]
+    ys = [p for w in rotated["walls"] for p in (w["start"][1], w["end"][1])]
+    for yaw in (0.0, 90.0, 180.0):
+        base = (sum(xs) / len(xs), sum(ys) / len(ys), 0.75)
+        m = mujoco.MjModel.from_xml_string(build_mjcf(rotated, base, yaw))
+        d = mujoco.MjData(m)
+        mujoco.mj_forward(m, d)  # mj_kinematics leaves the camera frames unset
+        cam = d.camera("overview")
+        f = np.array([np.cos(np.radians(yaw)), np.sin(np.radians(yaw))])
+        look = -cam.xmat.reshape(3, 3)[:2, 2]  # the camera looks along its -z
+        assert look @ f / np.linalg.norm(look) > 0.99  # it looks the way the robot faces
+        assert (np.array(base[:2]) - cam.xpos[:2]) @ f > 0.5  # from behind the robot
+        assert min(xs) < cam.xpos[0] < max(xs) and min(ys) < cam.xpos[1] < max(ys)  # inside the room
