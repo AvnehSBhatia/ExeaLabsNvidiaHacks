@@ -39,8 +39,8 @@ def mirrored(hero):
 def test_left_hinge_mjcf_is_unchanged(hero):
     xml = build_mjcf(hero, (2.6, 1.0, 0.75), n_people=2, people_seed=3)
     # measured on the code before the hinge field existed, then with the 16 mm bowl wall (only the bowl geoms moved),
-    # then with the 30 mm finger pads (only the four finger geoms moved)
-    assert hashlib.sha256(xml.encode()).hexdigest()[:16] == "605c03358c8ffaa9"
+    # then with the 30 mm finger pads (only the four finger geoms moved), then with drawer enclosure walls
+    assert hashlib.sha256(xml.encode()).hexdigest()[:16] == "f3c102a2012d5915"
     explicit = copy.deepcopy(hero)
     next(f for f in explicit["fixtures"] if f["id"] == "fridge_1")["hinge"] = "left"
     assert build_mjcf(explicit, (2.6, 1.0, 0.75), n_people=2, people_seed=3) == xml

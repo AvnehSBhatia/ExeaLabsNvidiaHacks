@@ -720,12 +720,13 @@
   "frames/wipe_counter_ego_view_mid.png": 29754,
   "frames/wipe_counter_wrist_end.png": 35373,
   "frames/wipe_counter_wrist_mid.png": 15971,
-  "geoms.json": 34258,
-  "README.md": 7278,
-  "rooms.json": 7484,
+  "geoms.json": 36481,
+  "readers-lines.json": 6696,
+  "README.md": 7384,
+  "rooms.json": 7983,
   "scan_points.bin": 180000,
-  "scan_points.json": 842,
-  "stats.json": 17177,
-  "todo.json": 32597
+  "scan_points.json": 891,
+  "stats.json": 17207,
+  "todo.json": 36282
  }
 }
