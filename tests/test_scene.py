@@ -319,3 +319,20 @@ def test_overview_camera_falls_back_to_the_north_line_when_nothing_behind_the_ro
     north = overview_camera_xml(xs, ys, (2.0, 2.0, 0.75), -90.0)
     assert overview_camera_xml(xs, ys, (2.0, 2.0, 0.75), 0.0, [block]) == north
     assert overview_camera_xml(xs, ys, (2.0, 2.0, 0.75), 0.0) != north  # nothing in the way: behind the robot
+
+def test_drawer_enclosure_walls_exist_with_tray_and_drawer_mask(twin):
+    m = _model(twin)
+    for k in (0, 1):
+        for cid in ("counter_a", "counter_b"):
+            tray = m.geom(f"{cid}_drawer{k}_tray")
+            left = m.geom(f"{cid}_drawer{k}_left")
+            right = m.geom(f"{cid}_drawer{k}_right")
+            back = m.geom(f"{cid}_drawer{k}_back")
+            front = m.geom(f"{cid}_drawer{k}_front")
+            for g in (tray, left, right, back):
+                assert m.geom_contype[g.id] == 2 and m.geom_conaffinity[g.id] == 2
+            assert left.pos[0] < tray.pos[0] < right.pos[0]
+            assert back.pos[1] < tray.pos[1]
+            assert left.size[0] == pytest.approx(0.006) and right.size[0] == pytest.approx(0.006)
+            assert back.size[1] == pytest.approx(0.006)
+

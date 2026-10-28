@@ -382,6 +382,9 @@ def counter_xml(c: dict, sinks: list[dict], fixtures: list[dict] = ()) -> str:
     # A cabinet too narrow for both is one door (has_drawers). Each hidden collision box uses the same coordinate
     # ranges as its visible front, so the arm touches what the cameras show (MAN-2).
     hid = f'{DRAWER} group="3"'
+    tw, td, th = DRAWER_W - 0.04, 0.38, 0.02
+    wt, wh = 0.012, 0.08
+    wz = -0.07 - th / 2 + wh / 2
     for k in range(2 if drawers else 0):
         dz = dz0 - k * 0.24  # top drawer sits in the band just under the counter top
         o = (dx, front, dz)
@@ -391,7 +394,10 @@ def counter_xml(c: dict, sinks: list[dict], fixtures: list[dict] = ()) -> str:
             f'<joint name="{cid}_drawer{k}" type="slide" axis="0 1 0" range="0 0.4" damping="5" frictionloss="0.5"/>'
             f'<inertial pos="0 -0.2 0" mass="1.5" diaginertia="0.02 0.02 0.02"/>'
             + _rbox(f"{cid}_drawer{k}_front", da + r2, db - r2, ya, yb, z0, z1, "0.65 0.5 0.36 1", hid, o)
-            + _box(f"{cid}_drawer{k}_tray", (0, -0.2, -0.07), (DRAWER_W - 0.04, 0.38, 0.02), "0.6 0.46 0.33 1", DRAWER)
+            + _box(f"{cid}_drawer{k}_tray", (0, -0.2, -0.07), (tw, td, th), "0.6 0.46 0.33 1", DRAWER)
+            + _box(f"{cid}_drawer{k}_left", (-tw / 2 + wt / 2, -0.2, wz), (wt, td, wh), "0.6 0.46 0.33 1", DRAWER)
+            + _box(f"{cid}_drawer{k}_right", (tw / 2 - wt / 2, -0.2, wz), (wt, td, wh), "0.6 0.46 0.33 1", DRAWER)
+            + _box(f"{cid}_drawer{k}_back", (0, -0.2 - td / 2 + wt / 2, wz), (tw - 2 * wt, wt, wh), "0.6 0.46 0.33 1", DRAWER)
             + f'<geom name="{cid}_drawer{k}_handle" type="capsule" size="0.012" fromto="0 0.07 -0.05 0 0.07 0.05" '
               f'rgba="{STEEL}" {DRAWER}/>'
             + _box(None, (0, 0.035, 0.04), (0.02, 0.07, 0.02), "0.3 0.3 0.3 1", hid)
