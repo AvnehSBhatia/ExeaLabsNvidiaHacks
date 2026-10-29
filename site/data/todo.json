@@ -3,9 +3,9 @@
  "repo": "AvnehSBhatia/ExeaLabsNvidiaHacks",
  "source": "README to-do, refreshed after #251, #252 and #302 put PRs #201-#301 on main. Submission fields re-checked against https://nebiusglobalaihackathon.devpost.com/ and the official rules on 2026-10-25.",
  "counts": {
-  "done": 66,
+  "done": 67,
   "review": 0,
-  "todo": 1,
+  "todo": 0,
   "blocked": 13,
   "total": 80
  },
@@ -1199,7 +1199,7 @@
     {
      "id": "P4",
      "title": "Pitch video: at least 1 minute of the modules in action, under 3 minutes, public on YouTube",
-     "status": "todo",
+     "status": "done",
      "owner_kind": "people",
      "size": "S",
      "priority": "must",
@@ -1211,7 +1211,7 @@
       156,
       195
      ],
-     "note": "The rules ask Physical AI entries with no hardware for at least one minute of footage of the key modules in action. site/motion/pitch.mp4 is 24.4 seconds, so it is not enough by itself. Record the screen capture in docs/PITCH-SCRIPT.md (about 2:30): scan, twin, sim, dataset, the GR00T result, and the Token Factory call once C6 has run. No copyrighted music or third-party marks. Upload as public on YouTube and put the link in the README and on the form (SUB)."
+     "note": "Public on YouTube since Oct 29: https://youtu.be/_DsfMNQbM2w (2:41)."
     },
     {
      "id": "OWN",
