@@ -49,7 +49,7 @@ Real scans of consenting homes, the three-cell usefulness eval (room-specific vs
 
 - Code: https://github.com/AvnehSBhatia/ExeaLabsNvidiaHacks (Apache 2.0)
 - Demo site (optional on this track): https://arrival.exealabs.org
-- Video: **[public YouTube link, at least 1 minute of the modules in action, under 3 minutes]**
+- Video: https://youtu.be/_DsfMNQbM2w (public, 2:41)
 - Checkpoint: https://huggingface.co/Ish1105/arrival-gr00t-n17-run4
 
 ## Built during the submission period?
