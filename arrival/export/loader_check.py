@@ -253,8 +253,12 @@ def _compare_stats(
         if not d["n"] or c in nonfinite_cols:
             continue
         mean = d["sum"] / d["n"]
-        std = np.sqrt(np.maximum(d["sq"] / d["n"] - mean**2, 0.0))
-        q = np.quantile(np.concatenate(d["rows"]).astype(np.float64), Q, axis=0)
+        rows = np.concatenate(d["rows"]).astype(np.float64)
+        # Two-pass std, as the writer stores it. E[x^2] - mean^2 on a constant column is rounding
+        # noise (1500 frames of float32 2.1 give 2.98e-8), which is above CONST_STD, so a parked
+        # base dim looks like it moves and normalisation is told to divide by zero.
+        std = rows.std(0)
+        q = np.quantile(rows, Q, axis=0)
         mine = {"mean": mean, "std": std, "min": d["min"], "max": d["max"], "q01": q[0], "q99": q[1]}
         out_stats[c] = {k: v.tolist() for k, v in mine.items()}
         const = np.flatnonzero(std <= CONST_STD)
@@ -395,7 +399,7 @@ def check_loader(root: str | Path) -> dict:
     n_ep = len(episodes)
     sample = {0, n_ep - 1, n_ep // 2} if n_ep else set()
     stat_cols = ("observation.state", "action")
-    acc = {c: {"n": 0, "sum": 0.0, "sq": 0.0, "min": None, "max": None, "rows": []} for c in stat_cols}
+    acc = {c: {"n": 0, "sum": 0.0, "min": None, "max": None, "rows": []} for c in stat_cols}
     ep_local: dict[int, dict] = {}
     rel_min, rel_max = np.inf, -np.inf
     padded = windows = short = frames = 0
@@ -451,7 +455,6 @@ def check_loader(root: str | Path) -> dict:
             d = acc[c]
             d["n"] += len(x)
             d["sum"] = d["sum"] + x.sum(0)
-            d["sq"] = d["sq"] + (x**2).sum(0)
             d["min"] = x.min(0) if d["min"] is None else np.minimum(d["min"], x.min(0))
             d["max"] = x.max(0) if d["max"] is None else np.maximum(d["max"], x.max(0))
             d["rows"].append(x.astype(np.float32))

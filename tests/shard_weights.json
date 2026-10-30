@@ -62,6 +62,7 @@
  "tests/test_lighting.py": 0.7,
  "tests/test_limit_request_types.py": 0.1,
  "tests/test_loader_check.py": 38.8,
+ "tests/test_loader_check_constant_std.py": 0.5,
  "tests/test_menagerie.py": 0.1,
  "tests/test_merge_shards_one_scan.py": 0.6,
  "tests/test_mobile_base.py": 42.9,
