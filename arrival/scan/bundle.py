@@ -50,6 +50,16 @@ def numbers(value, n: int | None = None) -> list[float] | None:
     return [float(v) for v in value]
 
 
+def _mujoco_name(label: str, ident: str) -> None:
+    """Wall, fixture and object ids are copied into MuJoCo name attributes. A double quote ends the attribute
+    and a NUL is not a legal XML character, so the model does not load and the error does not name the id."""
+    if '"' in ident or "\x00" in ident:
+        raise ScanBundleError(
+            f"{label} {ident!r}: id cannot contain a double quote or a NUL character "
+            "(the sim uses it as a MuJoCo name, and the model does not load)"
+        )
+
+
 def _check_geometry(bundle: dict) -> None:
     """Finite, positive, plausible numbers everywhere the twin compiler and the scene builder read them."""
     for n, w in enumerate(bundle.get("walls", [])):
@@ -64,6 +74,7 @@ def _check_geometry(bundle: dict) -> None:
             )
         if not isinstance(wid, str) or not wid:  # the twin's layout and the sim's wall box are named after it
             raise ScanBundleError(f"wall {n}: id must be a non-empty string, got {wid!r}")
+        _mujoco_name("wall", wid)
     for key in ("fixtures", "objects"):
         for item in bundle.get(key, []):
             if not isinstance(item, dict):
@@ -71,6 +82,7 @@ def _check_geometry(bundle: dict) -> None:
             what = f"{key[:-1]} {item.get('id')!r}"
             if not isinstance(item.get("id"), str) or not item["id"]:
                 raise ScanBundleError(f"{what}: id must be a non-empty string")
+            _mujoco_name(key[:-1], item["id"])
             label = "category" if key == "fixtures" else "label"
             if not isinstance(item.get(label), str) or not item[label]:
                 raise ScanBundleError(f"{what}: {label} must be a non-empty string")

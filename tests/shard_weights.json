@@ -100,6 +100,7 @@
  "tests/test_scan_accuracy_no_scan.py": 0.1,
  "tests/test_scan_fixtures.py": 4.4,
  "tests/test_scan_floor_entries.py": 0.1,
+ "tests/test_scan_id_quotes.py": 0.3,
  "tests/test_scan_fuzz.py": 0.6,
  "tests/test_scan_number_strings.py": 0.1,
  "tests/test_scan_room_id_from_folder.py": 0.7,
