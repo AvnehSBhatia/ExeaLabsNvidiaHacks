@@ -129,6 +129,7 @@
  "tests/test_tree_rss_indexerror.py": 0.1,
  "tests/test_upload_huge_integer.py": 0.1,
  "tests/test_upload_realism.py": 18.3,
+ "tests/test_validate_episode_ints.py": 0.2,
  "tests/test_variation.py": 5.3,
  "tests/test_vlm_planner.py": 6.4,
  "tests/test_web.py": 5.3,

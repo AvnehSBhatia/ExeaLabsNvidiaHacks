@@ -208,6 +208,16 @@ def validate(root: str | Path) -> list[str]:
 
     episodes = read_jsonl(root / "meta" / "episodes.jsonl")
     tasks = read_jsonl(root / "meta" / "tasks.jsonl")
+    # A string length crashes the sum (int + str). A string index crashes episode_index // chunks_size.
+    # true is an int there, so it is formatted as episode 1 and the real parquet is reported missing.
+    bad_ints = [e for e in episodes if type(e.get("episode_index")) is not int or type(e.get("length")) is not int]
+    if bad_ints:
+        for e in bad_ints:
+            errors.append(
+                "episodes.jsonl episode_index and length must be integers, "
+                f"got {e.get('episode_index')!r} and {e.get('length')!r}"
+            )
+        return errors
     n = info.get("total_episodes")
     if len(episodes) != n:
         errors.append(f"episodes.jsonl has {len(episodes)} rows, info.total_episodes={n}")
