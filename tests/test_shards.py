@@ -437,7 +437,9 @@ def test_report_times_each_family_so_cost_can_compare_with_teleop(runs):
     fams = rep["families"]
     assert set(fams) == {"counter_to_sink", "open_drawer"}
     assert all(f["seconds"] > 0 for f in fams.values())
-    assert sum(f["seconds"] for f in fams.values()) <= rep["seconds"] + 0.01
+    # the total and each family are rounded to 0.01 s on their own, so the family sum can run 0.005 s per family over
+    # (CI: 169.55 against 169.54 + 0.01, which is 169.54999... in floating point)
+    assert sum(f["seconds"] for f in fams.values()) <= rep["seconds"] + 0.005 * len(fams) + 1e-9
     merged = json.loads(runs["merged"]["report"].read_text())
     for fam, f in merged["families"].items():
         parts = [
