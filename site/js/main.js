@@ -1,16 +1,15 @@
 // Boot: load the exported data, build the stage, wire the UI and the scroll layer, then lift the loading sheet.
 import { loadCore, loadEpisode } from './data.js';
 import { bindData, renderEvaluate, renderFallback } from './sections.js';
-import { renderTodo } from './todo.js';
 import { initTilt } from './tilt.js';
-import { initTheme, initToTop, initSteps } from './chrome.js';
+import { initTheme, initToTop, initSteps, initFilm } from './chrome.js';
 import { initMotion } from './motion.js';
 import { prefersReducedMotion, isCoarse, watchMedia, $ } from './util.js';
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 7;
 let done = 0;
 const loaderFill = $('#loaderFill'), loaderMsg = $('#loaderMsg'), loader = $('#loader'), status = $('#status');
-const step = () => { done++; loaderFill.style.transform = `scaleX(${Math.min(done / TOTAL_STEPS, 1)})`; loaderMsg.textContent = `Opening survey data ${Math.min(done, TOTAL_STEPS)} / ${TOTAL_STEPS}`; };
+const step = () => { done++; loaderFill.style.transform = `scaleX(${Math.min(done / TOTAL_STEPS, 1)})`; loaderMsg.textContent = done >= TOTAL_STEPS ? 'Ready' : 'Loading the kitchen'; };
 const announce = (() => { let t = 0; return (msg) => { clearTimeout(t); t = setTimeout(() => { status.textContent = msg; }, 250); }; })();
 const html = document.documentElement;
 
@@ -27,6 +26,7 @@ async function boot() {
   const reduced = prefersReducedMotion(), coarse = isCoarse();
   // chrome that has to work on every path: theme toggle, spec sheet that follows the pipeline steps
   let stage = null;
+  initFilm();
   const motion = initMotion({ reduced, coarse });
   const theme = initTheme((t) => { stage?.setTheme(t); });
   initSteps();
@@ -43,7 +43,6 @@ async function boot() {
 
   bindData(data);
   renderEvaluate(data.stats);
-  try { renderTodo(data.todo); } catch (e) { console.warn('schedule', e); }
 
   try {
     const { Stage } = await import('./stage.js');

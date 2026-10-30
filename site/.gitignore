@@ -1,2 +1,5 @@
 .vercel
 .env*
+
+# the film for the page player: deployed from a local build (Vercel CLI), kept out of git for its size
+motion/arrival-film.mp4

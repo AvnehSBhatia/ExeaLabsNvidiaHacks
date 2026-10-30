@@ -55,3 +55,17 @@ export function initSteps() {
   }, { rootMargin: '-57% 0px -42% 0px', threshold: 0 });
   steps.forEach((s) => io.observe(s));
 }
+
+// The film: every [data-film] button opens it in a dialog; closing it (button, Esc or a click outside) pauses it.
+export function initFilm() {
+  const dlg = $('#film'), video = $('#filmVideo'), close = $('#filmClose');
+  if (!dlg || !video) return;
+  const open = () => {
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    video.play().catch(() => {});                       // a browser that blocks autoplay leaves the controls to the viewer
+  };
+  document.querySelectorAll('[data-film]').forEach((b) => b.addEventListener('click', open));
+  close.addEventListener('click', () => dlg.close());
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  dlg.addEventListener('close', () => video.pause());
+}

@@ -34,6 +34,7 @@ export function bindData(data) {
 
 export function renderEvaluate(stats) {
   const ev = stats.eval, rows = document.getElementById('evalRows'), total = document.getElementById('evalTotal');
+  if (!rows || !total) return;                       // the results section shows the headline numbers instead
   rows.innerHTML = '';
   const pct = (x) => (x * 100).toFixed(3) + '%';
   const ci = (lo, hi, pt) => `<div class="axis" role="img" aria-label="95% Wilson interval ${lo.toFixed(2)} to ${hi.toFixed(2)}, observed ${pt.toFixed(2)}"><span class="axis__ci" style="left:${pct(lo)};width:${pct(hi - lo)}"><b></b></span><span class="axis__pt" style="left:${pct(pt)}"></span></div>`;
@@ -53,40 +54,6 @@ export function renderEvaluate(stats) {
   total.innerHTML = `<div class="erow__name">All families<small>pooled, still only ${t.episodes} runs</small></div>${ci(t.wilson_95[0], t.wilson_95[1], t.success_rate)}
     <div class="erow__fig"><strong>${t.successes} / ${t.episodes}</strong><small>${t.human_contacts} human contacts · ${t.arm_contact_episodes} runs touched furniture</small></div>`;
 
-  const minD = Math.min(...Object.values(ev.families).map((e) => e.min_human_distance_m));
-  const maxArm = Math.max(...Object.values(ev.families).map((e) => e.arm_contact_max_depth_m));
-  const f1 = ev.families[FAMILIES[0]];
-  document.getElementById('caveats').innerHTML = [
-    `<b>${per === 1 ? 'One run per task.' : `${per} runs per task.`}</b> ${f1.successes} of ${f1.episodes} succeeding has a 95% Wilson interval from ${f1.wilson_95[0].toFixed(2)} to ${f1.wilson_95[1].toFixed(2)}. Pooled, ${t.successes} of ${t.episodes} runs have an interval from ${t.wilson_95[0].toFixed(2)} to ${t.wilson_95[1].toFixed(2)}.`,
-    `<b>The policy is a scripted expert.</b> The harness ran <code>policy: ${ev.policy}</code>, so no learned model was involved. Nothing here measures GR00T.`,
-    `<b>Not held out.</b> <code>holdout: ${ev.holdout}</code>, with ${ev.people} people walking in the room.`,
-    `<b>One authored room.</b> The twin is the sample kitchen. Safety figures apply to this room only.`,
-    `<b>Contacts.</b> ${t.human_contacts} contacts with people; the closest approach was ${minD.toFixed(2)} m. ${t.arm_contact_episodes} of ${t.episodes} runs brushed furniture, at most ${(maxArm * 1000).toFixed(1)} mm deep.`,
-  ].map((s) => `<li>${s}</li>`).join('');
-
-  const c = stats.cost, rep = stats.dataset.report;
-  const costLine = (cmp) => {
-    if (!cmp.measured) return `<b>Cost against teleoperation.</b> Not compared: ${cmp.reason}, so no saving is claimed.`;
-    const g = cmp.generated, tl = cmp.teleop;
-    const time = g.seconds_per_success == null ? 'generated time per success was not recorded'
-      : `${g.seconds_per_success} s of local generation per success (n=${g.n_success}) against ${tl.seconds_per_success} s of operator time (n=${tl.n_success}), so teleop took ${cmp.seconds_ratio_teleop_over_generated}x as long`;
-    return `<b>Cost against teleoperation.</b> On <code>${cmp.task}</code> in ${cmp.room}: ${time}. Machine seconds against human seconds, no dollar saving is claimed.`;
-  };
-  document.getElementById('todo').innerHTML = [
-    `<b>The held-out comparison (G3).</b> The fine-tune ran (G1, self-reported, small samples) and was scored through the policy shim against a real GR00T server (G2). The protocol that compares the base model, generic data and this-room data at 50 episodes per cell has produced no results yet.`,
-    `<b>Measured real kitchens (P1, P2).</b> One kitchen scanned with the capture app on an iPhone 13 Pro Max has run end to end, but it has no tape measurements, the RGB-D recorder is not done, and the point cloud on this page is simulated.`,
-    costLine(c.comparison),
-  ].map((s) => `<li>${s}</li>`).join('');
-
-  document.getElementById('measured').innerHTML = `
-    <div><p class="mono">Local CPU cost</p><p>$${c.dollars.local_cpu.usd}</p><p>Measured over ${rep.attempts} attempts on the local CPU. Other cost lines are not measured.</p></div>
-    <div><p class="mono">Throughput</p><p>${fmt.n(rep.demos_per_hour, 1)} <small class="mono">demos/h</small></p><p>${rep.successes} demos in ${rep.seconds} s on the local CPU.</p></div>
-    <div><p class="mono">Dropped</p><p>${rep.dropped} of ${rep.attempts}</p><p>${rep.dropped === 0 && rep.successes === rep.attempts ? 'Every attempt passed the physics success check.' : `${rep.successes} of ${rep.attempts} attempts passed the physics success check.`}</p></div>`;
-
-  // print the loader's own warnings, code and message, rather than an explanation written for one particular code
-  const warns = stats.dataset.loader_check.warnings;
-  const warnEl = document.getElementById('warnText');
-  if (warnEl) warnEl.textContent = warns.map((w) => `${w.code}: ${w.msg}`).join(' ') || 'No warnings.';
 }
 
 export function renderFallback(stats) {

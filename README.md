@@ -2,13 +2,13 @@
 
 **Scan a room once. Get robot training data for that exact room.**
 
-[![Arrival demo: scan → digital twin → MuJoCo simulation → GR00T dataset](docs/media/demo.gif)](docs/media/demo.mp4)
+[![Watch the 2:41 film about Arrival on arrival.exealabs.org](docs/media/film-poster.jpg)](https://arrival.exealabs.org)
 
-*A 30-second silent render from the code (`python scripts/make_demo_video.py`).*
+**[Watch the film and walk through the 3D twin at arrival.exealabs.org](https://arrival.exealabs.org)**
 
-**Open source under the [Apache License 2.0](LICENSE)** · Live site: https://arrival.exealabs.org · Fine-tuned model: [GR00T N1.7 on Hugging Face](https://huggingface.co/Ish1105/arrival-gr00t-n17-run4) · Track: **Physical AI**
+**Track:** Physical AI · **License:** [Apache 2.0](LICENSE) · **Fine-tuned model:** [GR00T N1.7 on Hugging Face](https://huggingface.co/Ish1105/arrival-gr00t-n17-run4) · **Team:** 55 people, 16 with merged code
 
-**For judges:** [Results at a glance](#at-a-glance) · [Setup in 5 minutes](#get-started-5-minutes) · [NVIDIA Nemotron and NVIDIA open models](#nvidia-and-nebius-in-arrival) · [Where Token Factory accelerated our workflow](#where-nebius-token-factory-accelerated-our-workflow) · [Other Nebius tools and services](#other-nebius-tools-and-services) · [Results and limits](#does-it-work-status-oct-27-2026)
+**For judges:** [Results](#at-a-glance) · [Where everything is](#for-judges-where-everything-is) · [NVIDIA and Nebius in Arrival](#nvidia-and-nebius-in-arrival) · [Where Token Factory accelerated our workflow](#where-nebius-token-factory-accelerated-our-workflow) · [Run it in 5 minutes](#get-started-5-minutes) · [How it works](#how-it-works) · [Known limits](#known-limits)
 
 ---
 
@@ -20,6 +20,24 @@
 - **Hours become minutes.** 1,000 teleoperated demos would take a person 17.1 hours (61.5 s each, [measured](docs/results/p3-teleop-2026-10-21/README.md)); Arrival makes 1,000 physics-checked demos in about 55 minutes on one laptop (3.3 s each).
 - **Sim to real look, geometry kept.** NVIDIA Cosmos Transfer2.5-2B restyled sim episodes into photoreal kitchens; all 279 frames kept the physics' geometry ([results](docs/results/cosmos-transfer-2026-10-27/README.md)).
 - **Built in the open.** 418 merged pull requests from 16 contributors, about 2,280 tests, CI on Linux, macOS and Windows.
+
+## For judges: where everything is
+
+| You are looking for | Where it is |
+|---|---|
+| **The film** (2:41, more than a minute of the system running) | [arrival.exealabs.org](https://arrival.exealabs.org), "Watch the film". Real footage is labelled on screen: the iPhone RoomPlan scan of a team member's kitchen and our MuJoCo episodes restyled by NVIDIA Cosmos; the AI-generated illustration shots are labelled too. 37 lines read by 15 team members; music generated with Google Lyria 3 |
+| **A live, interactive demo** | [arrival.exealabs.org](https://arrival.exealabs.org): scroll from the scan to the twin to the simulation, drag the scan-against-twin divider, pick a task and scrub the recorded run. The site is [`site/`](site/) |
+| **GR00T N1.7** (NVIDIA open model) | Dataset export [`arrival/export/`](arrival/export/), fine-tune config [`configs/gr00t/`](configs/gr00t/) and [`scripts/prepare_gr00t.py`](scripts/prepare_gr00t.py), closed-loop scoring through [`arrival/policy_server/`](arrival/policy_server/) and `VLAClient` in [`arrival/sim/policy.py`](arrival/sim/policy.py). Results: [docs/07-eval.md](docs/07-eval.md); weights on [Hugging Face](https://huggingface.co/Ish1105/arrival-gr00t-n17-run4) |
+| **Nemotron on Nebius Token Factory** | Client [`arrival/models/token_factory.py`](arrival/models/token_factory.py), planner `VLMPlanner` in [`arrival/sim/policy.py`](arrival/sim/policy.py), wordings [`arrival/tasks/instructions.py`](arrival/tasks/instructions.py), detection [`arrival/twin/detect.py`](arrival/twin/detect.py). Evidence: [live calls](docs/results/live-apis-2026-10-26.json), [planner benchmark](docs/results/planner-benchmark-2026-10-26.json), [detection](docs/results/live-detect-2026-10-26.json) |
+| **Cosmos Transfer2.5** (NVIDIA open model) | Geometry check [`arrival/render/variation.py`](arrival/render/variation.py); the run and all 279 frames' scores in [docs/results/cosmos-transfer-2026-10-27](docs/results/cosmos-transfer-2026-10-27/README.md) |
+| **Tavily** | [`arrival/models/tavily.py`](arrival/models/tavily.py) and [`arrival/tasks/tavily_research.py`](arrival/tasks/tavily_research.py) |
+| **The pipeline itself** | Scan [`arrival/scan/`](arrival/scan/), twin [`arrival/twin/`](arrival/twin/), simulation [`arrival/sim/`](arrival/sim/), dataset [`arrival/export/`](arrival/export/); the map is under [How it works](#how-it-works) |
+| **The iPhone capture app** | [`ios/`](ios/) (RoomPlan scan, share, upload) |
+| **Measured results** | [docs/results/](docs/results/): teleop baseline, planner benchmark, GR00T loader check, Cosmos run, live API calls |
+| **Tests and CI** | [`tests/`](tests/) (about 2,280 tests, no network, no keys) and [`.github/workflows/ci.yml`](.github/workflows/ci.yml) (Linux, macOS, Windows) |
+| **How to run it** | [Get started](#get-started-5-minutes): five commands, no GPU and no keys |
+| **Every decision, in order** | [docs/BUILD-LOG.md](docs/BUILD-LOG.md) |
+| **Who built it** | [Who built this](#who-built-this) and [docs/CONTRIBUTORS.md](docs/CONTRIBUTORS.md) |
 
 ## What this is
 
@@ -143,7 +161,7 @@ Keys go in an untracked `.env` (see `.env.example`); `python -m arrival doctor` 
 | Robot: close drawer, close door, put mug in drawer, wipe counter | ✅ 100% each (32/32 across all families, seed 5, two people walking). The part starts open for the close tasks; the sponge must travel 0.4 m pressed to the top |
 | Robot: bowl | ✅ Held by the rim (one finger inside the wall). 4/4 bowl → sink. The bowl is now hollow in physics |
 | GR00T-format dataset + validator | ✅ Passes our validator, and loads in Isaac-GR00T's own `LeRobotEpisodeLoader` (`dac54b3`, Oct 27, on main `03690dd`): the fixed-arm, mobile-base and three-camera datasets at 224 px, every episode, decoded video, finite state and action, an instruction per row; GR00T's `stats.py` writes their stats (`scripts/check_gr00t_loader.py`, [docs/results/gr00t-loader-2026-10-27](docs/results/gr00t-loader-2026-10-27/README.md)). No fine-tune has run on a dataset this new |
-| Local web page: browse, download, upload | ✅ Works. Redesigned page: room cards with previews and stats, drag-and-drop upload, live job stages. Uploads are processed by `python -m arrival work` on the same machine (twin, sim dataset, zip); a killed worker's jobs are requeued. The static demo page is live at https://arrival.exealabs.org and was checked in a browser at 1024 px and 375 px (#195). ⚠️ The upload-to-dataset page is not hosted, and the Nebius fan-out has not run for real |
+| Local web page: browse, download, upload | ✅ Works. Redesigned page: room cards with previews and stats, drag-and-drop upload, live job stages. Uploads are processed by `python -m arrival work` on the same machine (twin, sim dataset, zip); a killed worker's jobs are requeued. The demo site at https://arrival.exealabs.org plays the film and walks through the 3D twin, checked in a browser at desktop and phone width. ⚠️ The upload-to-dataset page is not hosted, and the Nebius fan-out has not run for real |
 | VLM planner (Nemotron) / VLA client (GR00T server) | ✅ VLM planner (Nemotron) wired into sim collection with Token Factory and offline cache fixture (POL-1); dynamic instruction generation with held-out eval set (POL-2). The VLA client (`--policy vla`) has scored GR00T checkpoints through a live GR00T server (`docs/ref/POL-3.md`; scores in the eval row above) |
 | GR00T N1.7 fine-tune and paired evaluation | ✅ Fine-tunes of GR00T N1.7-3B on `hero_kitchen_sim` ran on one 96 GB GPU on Cosmos (not Nebius) and were scored in the sim on identical trials (`docs/07-eval.md`, "Results so far"). Best so far 39 of 48 trials (81%) against 26 of 48 for the clean-data baseline (paired sign test p = 0.007): clean data plus DART demos with the marginal drawer pulls removed. ⚠️ Small samples; the generic-RoboCasa and base-GR00T cells of the usefulness protocol (DAT-3) are not run, so `usefulness` stays `null` |
 | Demo multiplication, splats, Cosmos, Nebius scale-out | 🟡 Partly built, none run at scale. Demos are multiplied in physics by our own retargeting, not upstream MimicGen: seed-demo replay (DAT-4a, `arrival/generate/retarget.py`) and object-centric SE(3) retargeting of `counter_to_sink` (G7, `arrival/generate/se3_retarget.py`), which turned 14 human teleop seeds into 104 physics-checked episodes from 140 attempts; `arrival/generate/mimicgen.py` only probes for RoboCasa. `arrival/render/splat.py` composites a static view and the moving geometry by depth; no Gaussian splat is trained. NVIDIA Cosmos Transfer2.5-2B restyled three sim episodes into photoreal kitchens on Oct 27, and every frame passed the restyle stage's edge check (`docs/results/cosmos-transfer-2026-10-27/`); the dataset run through `arrival/render/variation.py` (SIM-7a) is still open. `arrival fanout --backend nebius` is tested against in-process fakes and has not run on Nebius. Still open for the hackathon: the DAT-3 baseline cells and real scans (CAP-3) |
@@ -156,7 +174,7 @@ There are two datasets. `python -m arrival sim` writes **physics-simulated** dat
 - The mobile base (L13) is behind `--base mobile` and the real Franka behind `--arm menagerie`; the defaults are still the fixed Panda-style arm. The Menagerie arm was measured over all families at seed 5 with no people and, on Oct 27 (main `897aa05`), at seeds 0 and 3 with two people walking: 12 of 14 and 13 of 14, `open_oven` missing in both. Its steepest flap tilt put the real hand's body into the stove front; without that tilt, the same runs on main `5898e89` are 14 of 14 and 14 of 14, no human contacts, no episode flagged.
 - With a fixed base, drawers and `close_door` on the U-kitchen's corner cabinet stay unreachable and are skipped. The rotated kitchen's fridge, whose right side is in the room's corner, is hinged on that side since the hinge is inferred from the walls (`hinge_source: inferred_from_walls`), and opens. Only the corner cabinet's `open_door` takes a shifted stand spot. The reach planner checks the arm's IK, not collisions.
 - The job memory limit (`ARRIVAL_MAX_JOB_MB`) counts resident memory across the process tree (`/proc` on Linux, `Toolhelp32`/`psapi` on Windows, `ps` on macOS; `docs/ref/MEMCAP.md`).
-- The static demo page is live at https://arrival.exealabs.org and was checked in a browser at desktop and phone width (#195). The upload page's buttons were checked in headless Chromium; it is not hosted. Uploads are processed by local workers that share one `out/` folder.
+- The demo site at https://arrival.exealabs.org plays the film and walks through the 3D twin; it was checked in a browser at desktop and phone width. The upload page's buttons were checked in headless Chromium; it is not hosted. Uploads are processed by local workers that share one `out/` folder.
 - One real kitchen, scanned with the capture app on an iPhone 13 Pro Max, has run end to end (`tests/fixtures/roomplan/kitchen_real_01.json`: 12 tasks over 11 families, 9 of 12 episodes, valid). With every family at 12 episodes (seed 0, no people) it was 6 of 12 on Oct 26, every cabinet door failing, and is 12 of 12 since the blind-corner and narrow-cabinet layout fix (`docs/BUILD-LOG.md`). It has no tape measurements yet, and GR00T has not trained on it; the GR00T scores above are from the authored hero kitchen. The three measured, consented scans (P2) are not done.
 - `tests/fixtures/roomplan/office.json` and `study.json` are clean authored test fixtures under Apache 2.0 (P5, #310). Real phone captures with doors and windows remain open under P5 to validate placement against real-device sensor noise.
 
@@ -187,17 +205,20 @@ Fine-tune GR00T N1.7, score in the twin   docs/GR00T-FINETUNE.md, docs/07-eval.m
 
 | Folder | What lives there |
 |---|---|
-| `arrival/scan/` | Scan loaders: RoomPlan JSON, authored ScanBundle, four-photo slot |
-| `arrival/twin/`, `arrival/catalog/` | Twin compiler and category maps |
-| `arrival/tasks/` | Task and variation proposer |
-| `arrival/sim/` | MuJoCo scene, robot, IK, people, policies, data collection |
-| `arrival/export/` | LeRobot v2 writer and validator |
-| `arrival/generate/`, `arrival/render/` | Scripted placeholder, physics seed replay and native SE(3) retargeting; external MimicGen and splat stubs |
-| `arrival/models/` | Nebius Token Factory (Nemotron) client |
-| `arrival/web/`, `arrival/jobs/` | Local web page and upload queue |
-| `scans/` | Sample rooms |
-| `tests/` | pytest suite. No network, about 20 minutes on one core (CI splits it into three shards, `-n auto`) |
-| `docs/` | Reference, design contracts, access links, build log |
+| [`arrival/scan/`](arrival/scan/) | Scan loaders: RoomPlan JSON, authored ScanBundle, four-photo slot |
+| [`arrival/twin/`](arrival/twin/), [`arrival/catalog/`](arrival/catalog/) | Twin compiler and category maps |
+| [`arrival/tasks/`](arrival/tasks/) | Task and variation proposer, Nemotron wordings, Tavily research |
+| [`arrival/sim/`](arrival/sim/) | MuJoCo scene, robot, IK, people, policies, data collection |
+| [`arrival/export/`](arrival/export/) | LeRobot v2 writer and validator |
+| [`arrival/generate/`](arrival/generate/), [`arrival/render/`](arrival/render/) | Scripted placeholder, physics seed replay and native SE(3) retargeting, the Cosmos geometry check; external MimicGen and splat stubs |
+| [`arrival/models/`](arrival/models/) | Nebius Token Factory (Nemotron) and Tavily clients |
+| [`arrival/policy_server/`](arrival/policy_server/) | The GR00T policy server protocol the sim scores checkpoints through |
+| [`arrival/web/`](arrival/web/), [`arrival/jobs/`](arrival/jobs/) | Local web page and upload queue; Nebius Serverless Jobs fan-out |
+| [`ios/`](ios/) | The iPhone RoomPlan capture app |
+| [`site/`](site/) | The demo site at arrival.exealabs.org |
+| [`scans/`](scans/) | Sample rooms |
+| [`tests/`](tests/) | pytest suite. No network, about 20 minutes on one core (CI splits it into three shards, `-n auto`) |
+| [`docs/`](docs/) | Reference, design contracts, results, build log |
 
 ## Paired robot and room views
 
@@ -248,7 +269,7 @@ Pull requests opened against this repository, by author (merged, or consolidated
 
 <!-- todo:start (generated by scripts/render_todo_readme.py from site/data/todo.json) -->
 
-As of 2026-10-28: **66** shipped, **0** in review, **1** next, **13** blocked, of **80** items. 418 pull requests merged, 2 open. The same list is on the demo site (`site/data/todo.json`). A row is shipped only when its pull request is merged on `main`.
+As of 2026-10-28: **66** shipped, **0** in review, **1** next, **13** blocked, of **80** items. 418 pull requests merged, 2 open. The list lives in `site/data/todo.json`. A row is shipped only when its pull request is merged on `main`.
 
 Sizes: S under half a day, M about a day, L several days. Priority: **must** (the demo or the core claim breaks without it), **should**, nice. Anything that needs real data reports "not measured" until the blocked rows land.
 

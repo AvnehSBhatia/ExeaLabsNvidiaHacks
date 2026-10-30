@@ -44,7 +44,6 @@ export async function loadCore(step) {
     ['rooms', () => j('rooms.json')],
     ['geoms', () => j('geoms.json')],
     ['stats', () => j('stats.json')],
-    ['todo', () => j('todo.json').catch(() => null)],             // optional: the page reads fine without the schedule
     ['scan', async () => {
       const meta = await j('scan_points.json');
       const r = await fetch(new URL('scan_points.bin', base));

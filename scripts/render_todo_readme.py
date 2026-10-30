@@ -1,4 +1,4 @@
-"""Write the README to-do from site/data/todo.json, the same file the demo site's schedule reads.
+"""Write the README to-do from site/data/todo.json, the single record of what is built and what is left.
 
     python scripts/render_todo_readme.py          # rewrite the block between the todo markers in README.md
     python scripts/render_todo_readme.py --check  # exit 1 if README.md is not what the JSON would give
@@ -44,7 +44,7 @@ def render(todo: dict) -> str:
         "",
         f"As of {todo['as_of']}: **{c['done']}** shipped, **{c['review']}** in review, **{c['todo']}** next, "
         f"**{c['blocked']}** blocked, of **{c['total']}** items. {prs['merged']} pull requests merged, {prs['open']} open. "
-        "The same list is on the demo site (`site/data/todo.json`). A row is shipped only when its pull request is merged on `main`.",
+        "The list lives in `site/data/todo.json`. A row is shipped only when its pull request is merged on `main`.",
         "",
         "Sizes: S under half a day, M about a day, L several days. Priority: **must** (the demo or the core claim breaks "
         'without it), **should**, nice. Anything that needs real data reports "not measured" until the blocked rows land.',
