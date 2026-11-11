@@ -1,5 +1,5 @@
 # Headless CPU image: MuJoCo renders through EGL/OSMesa, no GPU needed.
-FROM python:3.11-slim
+FROM python:3.15-slim
 
 ENV MUJOCO_GL=egl \
     PYTHONUNBUFFERED=1 \
