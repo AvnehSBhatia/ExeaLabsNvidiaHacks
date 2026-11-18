@@ -3,7 +3,7 @@
 # Confirmed from the Isaac-GR00T README: dGPU x86_64 wants CUDA 12.8, Python 3.12, uv, ffmpeg.
 # UNVERIFIED: the exact base image tag below and that it ships what Isaac-GR00T needs (the README
 # points to docker/README.md in that repo, which was not read). Check it before building.
-FROM nvidia/cuda:12.8.0-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:13.5.0-cudnn-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
